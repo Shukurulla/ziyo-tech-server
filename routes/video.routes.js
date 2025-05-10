@@ -9,7 +9,7 @@ router.get("/all", async (req, res) => {
     // for (let i = 0; i < allVideos.length; i++) {
     //   await videoModel.findByIdAndDelete(allVideos[i]._id);
     // }
-    // res.json({ status: "success", data: allVideos });
+    res.json({ status: "success", data: allVideos });
   } catch (error) {
     res.status(500).json({ status: "error", message: error.message });
   }
