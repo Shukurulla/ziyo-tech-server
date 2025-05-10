@@ -41,10 +41,10 @@ router.get("/all", authMiddleware, async (req, res) => {
             ? `${student.firstname} ${student.lastname}`
             : `ID: ${work.studentId}`,
           studentId: student._id,
-          title: `Video ${video.title}`,
+          title: `Video ${video?.title}`,
           files: work.works.map((file) => ({
             fileUrl: file.fileUrl,
-            fileName: file.title,
+            fileName: file?.title,
           })),
           submittedAt: work.createdAt,
           isSended: isSended == null ? false : true,
@@ -63,7 +63,7 @@ router.get("/all", authMiddleware, async (req, res) => {
             ? `${student.firstname} ${student.lastname} `
             : `ID: ${work.student}`,
           studentId: student._id,
-          title: `Practice: ${practice.title}`,
+          title: `Practice: ${practice?.title}`,
           files: [
             { fileUrl: work.fileUrl, fileName: work.fileUrl.split("/").pop() },
           ],
