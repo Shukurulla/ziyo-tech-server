@@ -6,8 +6,7 @@ import { getAccessToken } from "../utils/apiVideoAuth.js"; // token olish uchun
 
 const router = express.Router();
 
-// Multer'ni fayllarni xotiraga olish uchun memoryStorage foydalanamiz
-const storage = multer.memoryStorage(); // memoryStorage() orqali faylni xotiraga olish
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const sftpConfig = {
@@ -20,7 +19,6 @@ const sftpConfig = {
 router.post(
   "/",
   upload.fields([
-    // Video, Audio va Presentation fayllarini olish
     { name: "audios", maxCount: 5 },
     { name: "presentations", maxCount: 5 },
   ]),
@@ -28,40 +26,40 @@ router.post(
     try {
       const { title, description, video } = req.body;
 
-      // SFTP orqali fayllarni yuborish uchun ulanish
+      const timestamp = Date.now(); // hozirgi vaqtni olish
+
       const sftp = new Client();
       await sftp.connect(sftpConfig);
 
-      // Audio va prezentatsiyalarni uzatish
       const audios = {};
       const presentations = {};
 
-      // Audio fayllarini uzatish
+      // Audio fayllar
       for (const file of req.files.audios || []) {
-        const remotePath = `/media/files/${file.originalname}`;
-        await sftp.put(Buffer.from(file.buffer), remotePath); // faylni xotiradan yuborish
+        const uniqueName = `${timestamp}-${file.originalname}`;
+        const remotePath = `/media/files/${uniqueName}`;
+        await sftp.put(Buffer.from(file.buffer), remotePath);
         audios[file.originalname] = `http://kepket.uz${remotePath}`;
       }
 
-      // Prezentatsiyalarni uzatish
+      // Prezentatsiyalar fayllari
       for (const file of req.files.presentations || []) {
-        const remotePath = `/media/files/${file.originalname}`;
-        await sftp.put(Buffer.from(file.buffer), remotePath); // faylni xotiradan yuborish
+        const uniqueName = `${timestamp}-${file.originalname}`;
+        const remotePath = `/media/files/${uniqueName}`;
+        await sftp.put(Buffer.from(file.buffer), remotePath);
         presentations[file.originalname] = `http://kepket.uz${remotePath}`;
       }
 
       await sftp.end();
 
-      // MongoDB ga saqlash
       const saved = await videoModel.create({
-        video: JSON.parse(video), // video ma'lumotlarini JSON sifatida saqlash
+        video: JSON.parse(video),
         title,
         description,
         presentations,
         audios,
       });
 
-      // Javob qaytarish
       res.json(saved);
     } catch (err) {
       console.error("Uploadda xatolik:", err.response?.data || err.message);
