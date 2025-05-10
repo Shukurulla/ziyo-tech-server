@@ -14,6 +14,7 @@ router.get("/all", async (req, res) => {
     res.status(500).json({ status: "error", message: error.message });
   }
 });
+
 router.get("/:id", async (req, res) => {
   try {
     const findVideo = await videoModel.findById(req.params.id);
