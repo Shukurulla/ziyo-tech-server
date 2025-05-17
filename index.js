@@ -16,7 +16,7 @@ import materialRouter from "./routes/material.routes.js";
 import submissionRouter from "./routes/submissionsRoutes.js";
 import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
-
+import questionRouter from "./routes/question.js";
 const app = express();
 
 app.use(
@@ -45,7 +45,7 @@ app.use("/api/evaluation", evalutionRouter);
 app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
-
+app.use("/api/questions", questionRouter);
 app.listen(process.env.PORT, () => {
   console.log(`server has ben started on port ${process.env.PORT}`);
 });
