@@ -1,13 +1,27 @@
-// routes/question.js
+// routes/question.js - updated with videoId support
 import express from "express";
-import Question from "../models/question.js";
+import Question from "../model/question.js";
 
 const router = express.Router();
 
 // Yangi savol qo'shish
 router.post("/create", async (req, res) => {
   try {
-    const question = new Question(req.body);
+    // Validate required fields
+    const { questionText, options, videoId } = req.body;
+    if (!questionText || !options || !videoId) {
+      return res.status(400).json({
+        error: "questionText, options, and videoId are required",
+      });
+    }
+
+    // Create the question with videoId
+    const question = new Question({
+      questionText,
+      options,
+      videoId,
+    });
+
     await question.save();
     res.status(201).json(question);
   } catch (error) {
@@ -18,7 +32,7 @@ router.post("/create", async (req, res) => {
 // Foydalanuvchi javobini tekshirish
 router.post("/submit", async (req, res) => {
   try {
-    const { questionId, selectedPairs } = req.body; // selectedPairs: [{ option1: "car", option2: "BMW" }, ...]
+    const { questionId, selectedPairs } = req.body;
     const question = await Question.findById(questionId);
 
     if (!question) {
@@ -49,6 +63,16 @@ router.post("/submit", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const questions = await Question.find();
+    res.json(questions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Video ID bo'yicha savollarni olish
+router.get("/video/:videoId", async (req, res) => {
+  try {
+    const questions = await Question.find({ videoId: req.params.videoId });
     res.json(questions);
   } catch (error) {
     res.status(500).json({ error: error.message });

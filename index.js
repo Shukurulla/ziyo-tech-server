@@ -46,6 +46,7 @@ app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
+
 app.listen(process.env.PORT, () => {
   console.log(`server has ben started on port ${process.env.PORT}`);
 });
