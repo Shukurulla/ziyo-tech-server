@@ -89,6 +89,7 @@ router.post(
           relatedType: "practiceWork",
           recipientType: "student",
           practiceTitle: newWork.practiceTitle,
+          workId: practiceId,
         });
         await notification.save();
       }
