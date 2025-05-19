@@ -1,3 +1,4 @@
+// Update to index.js to include chat routes
 import express from "express";
 import cors from "cors";
 import { config } from "dotenv";
@@ -17,6 +18,8 @@ import submissionRouter from "./routes/submissionsRoutes.js";
 import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
+import chatRouter from "./routes/chat.routes.js"; // Add chat routes
+
 const app = express();
 
 app.use(
@@ -36,7 +39,6 @@ app.use("/api/teacher", teacherRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/token", tokenRouter);
 app.use("/api/video", videoRouter);
-
 app.use("/api/practices", practiceRouter);
 app.use("/api/tests", testRouter);
 app.use("/api/videoWork", videoWorkRouter);
@@ -46,6 +48,7 @@ app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
+app.use("/api/chat", chatRouter); // Add chat routes
 
 app.listen(process.env.PORT, () => {
   console.log(`server has ben started on port ${process.env.PORT}`);
