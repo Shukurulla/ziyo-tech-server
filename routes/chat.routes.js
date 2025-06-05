@@ -130,7 +130,7 @@ async function generateAIResponse(userMessage) {
         headers: {
           "Content-Type": "application/json",
           Authorization:
-            "Bearer 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",
+            "Bearer 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",
         },
       }
     );
