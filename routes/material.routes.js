@@ -1,4 +1,3 @@
-// Updated material.routes.js with thumbnail support
 import express from "express";
 import mongoose from "mongoose";
 import multer from "multer";
@@ -28,13 +27,31 @@ if (!MaterialModel.schema.paths.thumbnailUrl) {
   });
 }
 
+// Multer error handling middleware
+const multerErrorHandler = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({
+        status: "error",
+        message: `Unexpected field: ${err.field}. Expected 'file' or 'thumbnail'.`,
+      });
+    }
+    return res.status(400).json({
+      status: "error",
+      message: `Multer error: ${err.message}`,
+    });
+  }
+  next(err);
+};
+
 // Get all materials
 router.get("/materials", authMiddleware, async (req, res) => {
   try {
     const materials = await MaterialModel.find().sort({ createdAt: -1 });
     res.json({ status: "success", data: materials });
   } catch (err) {
-    res.status(500).json({ status: "error", message: err.message });
+    console.error("Error fetching materials:", err);
+    res.status(500).json({ status: "error", message: "Server xatosi" });
   }
 });
 
@@ -42,6 +59,9 @@ router.get("/materials", authMiddleware, async (req, res) => {
 router.get("/materials/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ status: "error", message: "Noto'g'ri ID" });
+    }
     const material = await MaterialModel.findById(id);
     if (!material) {
       return res
@@ -50,7 +70,8 @@ router.get("/materials/:id", authMiddleware, async (req, res) => {
     }
     res.json({ status: "success", data: material });
   } catch (err) {
-    res.status(500).json({ status: "error", message: err.message });
+    console.error("Error fetching material:", err);
+    res.status(500).json({ status: "error", message: "Server xatosi" });
   }
 });
 
@@ -62,19 +83,21 @@ router.post(
     { name: "file", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
   ]),
+  multerErrorHandler,
   async (req, res) => {
     try {
-      const { title, description, content } = req.body;
+      const { title, description, content, fileUrl } = req.body;
       const files = req.files;
 
+      // Validate required fields
       if (!title || !description || !content) {
         return res.status(400).json({
           status: "error",
-          message: "Title, description va content majburiy",
+          message: "Sarlavha, tavsif va kontent majburiy",
         });
       }
 
-      let fileUrl = "";
+      let fileUrlResult = "";
       let fileType = "";
       let thumbnailUrl = "";
 
@@ -84,9 +107,10 @@ router.post(
       // Process main file if present
       if (content === "file") {
         if (!files || !files.file) {
+          await sftp.end();
           return res.status(400).json({
             status: "error",
-            message: "File content uchun fayl majburiy",
+            message: "Fayl kontenti uchun fayl majburiy",
           });
         }
 
@@ -96,20 +120,27 @@ router.post(
 
         await sftp.put(Buffer.from(file.buffer), remoteFilePath);
 
-        fileUrl = `http://kepket.uz${remoteFilePath}`;
+        fileUrlResult = `http://kepket.uz${remoteFilePath}`;
         fileType = path
           .extname(file.originalname)
           .toLowerCase()
           .replace(".", "");
       } else if (content === "link") {
-        fileUrl = req.body.fileUrl || "";
-        fileType = "link";
         if (!fileUrl) {
+          await sftp.end();
           return res.status(400).json({
             status: "error",
-            message: "Link content uchun fileUrl majburiy",
+            message: "Havola kontenti uchun fileUrl majburiy",
           });
         }
+        fileUrlResult = fileUrl;
+        fileType = "link";
+      } else {
+        await sftp.end();
+        return res.status(400).json({
+          status: "error",
+          message: "Noto'g'ri kontent turi: 'file' yoki 'link' bo'lishi kerak",
+        });
       }
 
       // Process thumbnail if present
@@ -118,6 +149,7 @@ router.post(
 
         // Only accept image files
         if (!thumbnail.mimetype.startsWith("image/")) {
+          await sftp.end();
           return res.status(400).json({
             status: "error",
             message: "Thumbnail faqat rasm bo'lishi kerak",
@@ -131,7 +163,7 @@ router.post(
         try {
           await sftp.mkdir("/media/thumbnails", true);
         } catch (dirErr) {
-          if (dirErr.message.indexOf("File exists") === -1) {
+          if (!dirErr.message.includes("File exists")) {
             console.error("Thumbnail directory creation error:", dirErr);
           }
         }
@@ -139,9 +171,6 @@ router.post(
         await sftp.put(Buffer.from(thumbnail.buffer), remoteThumbnailPath);
 
         thumbnailUrl = `http://kepket.uz${remoteThumbnailPath}`;
-      } else if (req.body.thumbnailUrl) {
-        // Use existing thumbnail URL if provided (for updates)
-        thumbnailUrl = req.body.thumbnailUrl;
       }
 
       await sftp.end();
@@ -149,7 +178,7 @@ router.post(
       const newMaterial = new MaterialModel({
         title,
         description,
-        fileUrl,
+        fileUrl: fileUrlResult,
         fileType,
         content,
         thumbnailUrl,
@@ -159,7 +188,7 @@ router.post(
       res.json({ status: "success", data: newMaterial });
     } catch (err) {
       console.error("Material yuklashda xatolik:", err);
-      res.status(500).json({ status: "error", message: err.message });
+      res.status(500).json({ status: "error", message: "Server xatosi" });
     }
   }
 );
@@ -172,6 +201,7 @@ router.put(
     { name: "file", maxCount: 1 },
     { name: "thumbnail", maxCount: 1 },
   ]),
+  multerErrorHandler,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -184,12 +214,27 @@ router.put(
       } = req.body;
       const files = req.files;
 
+      // Validate ID
+      if (!mongoose.isValidObjectId(id)) {
+        return res
+          .status(400)
+          .json({ status: "error", message: "Noto'g'ri ID" });
+      }
+
       // Find existing material
       const material = await MaterialModel.findById(id);
       if (!material) {
         return res.status(404).json({
           status: "error",
           message: "Material topilmadi",
+        });
+      }
+
+      // Validate required fields
+      if (!title || !description || !content) {
+        return res.status(400).json({
+          status: "error",
+          message: "Sarlavha, tavsif va kontent majburiy",
         });
       }
 
@@ -219,7 +264,7 @@ router.put(
             .toLowerCase()
             .replace(".", "");
 
-          // Delete old file if it exists on the server
+          // Delete old file if it exists
           if (
             material.fileUrl &&
             material.fileUrl.startsWith("http://kepket.uz")
@@ -232,16 +277,50 @@ router.put(
               await sftp.delete(oldFilePath);
             } catch (deleteErr) {
               console.warn("Error deleting old file:", deleteErr.message);
-              // Continue with the update even if old file deletion fails
             }
           }
         } else if (providedFileUrl) {
-          // Keep existing file URL
           updateData.fileUrl = providedFileUrl;
+          updateData.fileType = material.fileType;
+        } else {
+          await sftp.end();
+          return res.status(400).json({
+            status: "error",
+            message: "Fayl kontenti uchun fayl yoki fileUrl majburiy",
+          });
         }
       } else if (content === "link") {
-        updateData.fileUrl = providedFileUrl || "";
+        if (!providedFileUrl) {
+          await sftp.end();
+          return res.status(400).json({
+            status: "error",
+            message: "Havola kontenti uchun fileUrl majburiy",
+          });
+        }
+        updateData.fileUrl = providedFileUrl;
         updateData.fileType = "link";
+
+        // Delete old file if it was a file
+        if (
+          material.fileUrl &&
+          material.fileUrl.startsWith("http://kepket.uz")
+        ) {
+          try {
+            const oldFilePath = material.fileUrl.replace(
+              "http://kepket.uz",
+              ""
+            );
+            await sftp.delete(oldFilePath);
+          } catch (deleteErr) {
+            console.warn("Error deleting old file:", deleteErr.message);
+          }
+        }
+      } else {
+        await sftp.end();
+        return res.status(400).json({
+          status: "error",
+          message: "Noto'g'ri kontent turi: 'file' yoki 'link' bo'lishi kerak",
+        });
       }
 
       // Handle thumbnail update
@@ -264,7 +343,7 @@ router.put(
         try {
           await sftp.mkdir("/media/thumbnails", true);
         } catch (dirErr) {
-          if (dirErr.message.indexOf("File exists") === -1) {
+          if (!dirErr.message.includes("File exists")) {
             console.error("Thumbnail directory creation error:", dirErr);
           }
         }
@@ -289,7 +368,6 @@ router.put(
 
         updateData.thumbnailUrl = `http://kepket.uz${remoteThumbnailPath}`;
       } else if (providedThumbnailUrl) {
-        // Keep existing thumbnail URL
         updateData.thumbnailUrl = providedThumbnailUrl;
       } else if (req.body.thumbnailUrl === "") {
         // If explicitly set to empty, remove the thumbnail
@@ -328,7 +406,7 @@ router.put(
       console.error("Material yangilashda xatolik:", err);
       res.status(500).json({
         status: "error",
-        message: err.message,
+        message: "Server xatosi",
       });
     }
   }
@@ -338,6 +416,10 @@ router.put(
 router.delete("/materials/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ status: "error", message: "Noto'g'ri ID" });
+    }
+
     const material = await MaterialModel.findById(id);
     if (!material) {
       return res
@@ -346,48 +428,42 @@ router.delete("/materials/:id", authMiddleware, async (req, res) => {
     }
 
     // Delete files from server
-    if (
-      (material.fileUrl && material.fileUrl.startsWith("http://kepket.uz")) ||
-      (material.thumbnailUrl &&
-        material.thumbnailUrl.startsWith("http://kepket.uz"))
-    ) {
-      const sftp = new Client();
-      await sftp.connect(sftpConfig);
+    const sftp = new Client();
+    await sftp.connect(sftpConfig);
 
-      // Delete main file
-      if (material.fileUrl && material.fileUrl.startsWith("http://kepket.uz")) {
-        try {
-          const filePath = material.fileUrl.replace("http://kepket.uz", "");
-          await sftp.delete(filePath);
-        } catch (err) {
-          console.warn("Error deleting file:", err.message);
-        }
+    // Delete main file
+    if (material.fileUrl && material.fileUrl.startsWith("http://kepket.uz")) {
+      try {
+        const filePath = material.fileUrl.replace("http://kepket.uz", "");
+        await sftp.delete(filePath);
+      } catch (err) {
+        console.warn("Error deleting file:", err.message);
       }
-
-      // Delete thumbnail
-      if (
-        material.thumbnailUrl &&
-        material.thumbnailUrl.startsWith("http://kepket.uz")
-      ) {
-        try {
-          const thumbnailPath = material.thumbnailUrl.replace(
-            "http://kepket.uz",
-            ""
-          );
-          await sftp.delete(thumbnailPath);
-        } catch (err) {
-          console.warn("Error deleting thumbnail:", err.message);
-        }
-      }
-
-      await sftp.end();
     }
 
+    // Delete thumbnail
+    if (
+      material.thumbnailUrl &&
+      material.thumbnailUrl.startsWith("http://kepket.uz")
+    ) {
+      try {
+        const thumbnailPath = material.thumbnailUrl.replace(
+          "http://kepket.uz",
+          ""
+        );
+        await sftp.delete(thumbnailPath);
+      } catch (err) {
+        console.warn("Error deleting thumbnail:", err.message);
+      }
+    }
+
+    await sftp.end();
     await MaterialModel.findByIdAndDelete(id);
+
     res.json({ status: "success", message: "Material o'chirildi" });
   } catch (err) {
     console.error("Material o'chirishda xatolik:", err);
-    res.status(500).json({ status: "error", message: err.message });
+    res.status(500).json({ status: "error", message: "Server xatosi" });
   }
 });
 
