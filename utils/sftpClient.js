@@ -6,10 +6,10 @@ import fs from "fs";
 import os from "os";
 
 const config = {
-  host: "45.134.39.117",
+  host: "185.197.195.71",
   port: 22,
   username: "root",
-  password: "CH7aQhydDipRB9b1Jjrv",
+  password: "J?ea&DqT47!:",
 };
 
 // Qo'shimcha tekshiruv
