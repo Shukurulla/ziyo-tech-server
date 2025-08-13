@@ -270,7 +270,7 @@ app.use("*", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`Server has been started on port ${PORT}`);
   console.log(`Allowed CORS origins: ${allowedOrigins.length} domains`);
   console.log("CORS debugging enabled");
