@@ -31,65 +31,15 @@ import chatRouter from "./routes/chat.routes.js";
 
 const app = express();
 
-// CORS konfiguratsiyasi - MUHIM!
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "https://teacher.ziyo-tech.uz",
-  "https://ziyo-tech.uz",
-  "https://ziyo-tech-teacher.vercel.app",
-  // Development uchun
-  process.env.FRONTEND_URL,
-].filter(Boolean);
-
+// CORS - SODDA VA ISHLAYDIGAN VERSIYA
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, etc.)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.log("CORS Origin not allowed:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: true, // Barcha originlarga ruxsat (development uchun)
     credentials: true,
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "Accept",
-      "Origin",
-      "Access-Control-Request-Method",
-      "Access-Control-Request-Headers",
-    ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   })
 );
-
-// Preflight handler - barcha OPTIONS so'rovlar uchun
-app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,PUT,POST,DELETE,OPTIONS,PATCH"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin"
-  );
-  res.header("Access-Control-Allow-Credentials", true);
-  res.header("Access-Control-Max-Age", "86400"); // 24 hours
-  res.sendStatus(200);
-});
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
@@ -143,13 +93,6 @@ app.use(multerErrorHandler);
 
 // Global error handler
 app.use((err, req, res, next) => {
-  // CORS headers qo'shish error handler da ham
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", true);
-  }
-
   console.error("Global error handler:", err);
   res.status(500).json({
     status: "error",
