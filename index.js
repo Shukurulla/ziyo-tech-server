@@ -5,12 +5,10 @@ import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 import { multerErrorHandler } from "./utils/multerConfig.js";
+// Create uploads directories if they don't exist
+import fs from "fs";
 
 // Get current directory path for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-config();
 
 // Import routes
 import StudentRouter from "./routes/student.routes.js";
@@ -28,16 +26,21 @@ import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+config();
+
+mongoose.connect(process.env.MONGO_URI).then(() => {
+  console.log("database connected");
+});
 
 const app = express();
 
 // CORS - SODDA VA ISHLAYDIGAN VERSIYA
 app.use(
   cors({
-    origin: true, // Barcha originlarga ruxsat (development uchun)
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    origin: "*",
   })
 );
 
@@ -46,9 +49,6 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// Create uploads directories if they don't exist
-import fs from "fs";
 
 const uploadDirs = [
   "uploads",
@@ -65,10 +65,6 @@ uploadDirs.forEach((dir) => {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`Created directory: ${dir}`);
   }
-});
-
-mongoose.connect(process.env.MONGO_URI).then(() => {
-  console.log("database connected");
 });
 
 // Routes
