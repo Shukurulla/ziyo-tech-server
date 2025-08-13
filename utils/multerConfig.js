@@ -95,8 +95,25 @@ const upload = multer({
   },
 });
 
-// Error handling middleware for multer
+// CORS headers qo'shuvchi multer error handler
 export const multerErrorHandler = (err, req, res, next) => {
+  // CORS headers qo'shish
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://teacher.ziyo-tech.uz",
+    "https://ziyo-tech.uz",
+    "https://ziyo-tech-teacher.vercel.app",
+  ];
+
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", true);
+  }
+
   if (err instanceof multer.MulterError) {
     let message = "File upload error";
 
