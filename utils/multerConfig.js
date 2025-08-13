@@ -95,31 +95,50 @@ const upload = multer({
   },
 });
 
-// CORS headers qo'shuvchi multer error handler
+// PROFESSIONAL CORS ERROR HANDLER
 export const multerErrorHandler = (err, req, res, next) => {
-  // CORS headers qo'shish
+  // CORS headers qo'shish - har doim
   const allowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://teacher.ziyo-tech.uz",
+    "http://localhost:5173",
+    "http://localhost:5174",
     "https://ziyo-tech.uz",
+    "https://www.ziyo-tech.uz",
+    "https://teacher.ziyo-tech.uz",
+    "https://www.teacher.ziyo-tech.uz",
     "https://ziyo-tech-teacher.vercel.app",
+    "https://ziyo-tech-student.vercel.app",
+    "https://student.ziyo-tech.uz",
+    "https://www.student.ziyo-tech.uz",
   ];
 
   const origin = req.headers.origin;
+
+  // Set CORS headers for error responses
   if (allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", true);
   }
 
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires"
+  );
+
+  // Handle multer errors
   if (err instanceof multer.MulterError) {
     let message = "File upload error";
+    let statusCode = 400;
 
     switch (err.code) {
       case "LIMIT_FILE_SIZE":
         message = "File size too large. Maximum allowed size is 1GB";
+        statusCode = 413; // Payload Too Large
         break;
       case "LIMIT_FILE_COUNT":
         message = "Too many files. Maximum allowed is 10 files";
@@ -143,19 +162,34 @@ export const multerErrorHandler = (err, req, res, next) => {
         message = err.message;
     }
 
-    return res.status(400).json({
+    return res.status(statusCode).json({
       status: "error",
       message: message,
+      code: err.code,
     });
   }
 
+  // Handle file type errors
   if (
+    err.message &&
     err.message.includes("File type") &&
     err.message.includes("not allowed")
   ) {
-    return res.status(400).json({
+    return res.status(415).json({
+      // Unsupported Media Type
       status: "error",
       message: err.message,
+    });
+  }
+
+  // Handle other upload-related errors
+  if (
+    err.message &&
+    (err.message.includes("upload") || err.message.includes("file"))
+  ) {
+    return res.status(400).json({
+      status: "error",
+      message: "File upload failed: " + err.message,
     });
   }
 
