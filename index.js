@@ -35,32 +35,86 @@ mongoose.connect(process.env.MONGO_URI).then(() => {
 
 const app = express();
 
-// PROFESSIONAL CORS KONFIGURATSIYASI
+// VPS PRODUCTION CORS KONFIGURATSIYASI
 const allowedOrigins = [
+  "https://ziyo-tech-student.vercel.app",
+  "https://ziyo-tech-teacher.vercel.app",
+  "https://ziyo-tech.uz",
+  "https://www.ziyo-tech.uz",
+  "https://teacher.ziyo-tech.uz",
+  "https://student.ziyo-tech.uz",
+  "https://www.teacher.ziyo-tech.uz",
+  "https://www.student.ziyo-tech.uz",
+  // Development
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://ziyo-tech.uz",
-  "https://www.ziyo-tech.uz",
-  "https://teacher.ziyo-tech.uz",
-  "https://www.teacher.ziyo-tech.uz",
-  "https://ziyo-tech-teacher.vercel.app",
-  "https://ziyo-tech-student.vercel.app",
-  "https://student.ziyo-tech.uz",
-  "https://www.student.ziyo-tech.uz",
+  // VPS IP manzili (agar kerak bo'lsa)
+  "http://185.197.195.71:4522",
+  "https://185.197.195.71:4522",
 ];
 
+// Pre-flight middleware (eng yuqorida)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  console.log(
+    `${new Date().toISOString()} - ${req.method} ${
+      req.url
+    } from origin: ${origin}`
+  );
+
+  // Ruxsat etilgan originlarni tekshirish
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    // Origin bo'lmagan so'rovlar uchun (masalan, Postman)
+    res.header("Access-Control-Allow-Origin", "*");
+  } else {
+    // Noma'lum originlar uchun ham ruxsat berish (production debug uchun)
+    console.log(`Warning: Unknown origin ${origin} - allowing anyway`);
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,PUT,POST,DELETE,PATCH,OPTIONS"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,Pragma,Expires,X-CSRF-Token"
+  );
+  res.header("Access-Control-Max-Age", "86400"); // 24 hours
+
+  // OPTIONS preflight requests
+  if (req.method === "OPTIONS") {
+    console.log(`CORS Preflight handled for: ${req.url}`);
+    return res.status(200).end();
+  }
+
+  next();
+});
+
+// CORS middleware with package
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl requests, etc.)
-    if (!origin) return callback(null, true);
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) {
+      console.log("Request without origin - allowing");
+      return callback(null, true);
+    }
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin)) {
+      console.log(`CORS: Origin ${origin} allowed`);
       callback(null, true);
     } else {
-      console.log(`CORS blocked origin: ${origin}`);
-      callback(new Error("Not allowed by CORS"));
+      console.log(
+        `CORS: Origin ${origin} not in allowed list - allowing anyway for debug`
+      );
+      // Production debug uchun hamma originlarga ruxsat
+      callback(null, true);
     }
   },
   credentials: true,
@@ -77,43 +131,15 @@ const corsOptions = {
     "X-CSRF-Token",
   ],
   exposedHeaders: ["set-cookie"],
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
   preflightContinue: false,
   optionsSuccessStatus: 200,
 };
 
-// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
-app.options("*", cors(corsOptions));
-
-// Additional CORS headers for complex requests
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires, X-CSRF-Token"
-  );
-  res.header("Access-Control-Max-Age", "86400");
-
-  // Handle preflight
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
+// Trust proxy (VPS load balancer uchun)
+app.set("trust proxy", 1);
 
 // Body parsing middleware
 app.use(
@@ -141,9 +167,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from uploads directory
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Static files middleware
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"), {
+    setHeaders: (res, path) => {
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 
+// Create upload directories
 const uploadDirs = [
   "uploads",
   "uploads/videos",
@@ -161,16 +196,19 @@ uploadDirs.forEach((dir) => {
   }
 });
 
-// Health check route
+// Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
-    timestamp: new Date().toISOString(),
     cors: "enabled",
+    timestamp: new Date().toISOString(),
+    server: "VPS",
+    origin: req.headers.origin,
+    userAgent: req.headers["user-agent"],
   });
 });
 
-// Routes
+// API Routes
 app.use("/api/student", StudentRouter);
 app.use("/api/teacher", teacherRouter);
 app.use("/api/upload", uploadRouter);
@@ -187,19 +225,26 @@ app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
 app.use("/api/chat", chatRouter);
 
-// Global error handler for multer errors
+// Global error handler for multer
 app.use(multerErrorHandler);
 
 // Global error handler
 app.use((err, req, res, next) => {
   console.error("Global error handler:", err);
 
-  // CORS error handling
+  // Ensure CORS headers in error responses
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
+  // CORS specific errors
   if (err.message === "Not allowed by CORS") {
     return res.status(403).json({
       status: "error",
       message: "CORS policy violation",
-      origin: req.headers.origin,
+      origin: origin,
     });
   }
 
@@ -211,6 +256,12 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use("*", (req, res) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
   res.status(404).json({
     status: "error",
     message: "Route not found",
@@ -219,9 +270,10 @@ app.use("*", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server has been started on port ${PORT}`);
-  console.log(`Allowed CORS origins: ${allowedOrigins.join(", ")}`);
+  console.log(`Allowed CORS origins: ${allowedOrigins.length} domains`);
+  console.log("CORS debugging enabled");
 });
 
 export default app;
