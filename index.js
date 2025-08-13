@@ -38,6 +38,7 @@ app.use(
       "http://localhost:5174",
       "https://teacher.ziyo-tech.uz",
       "https://ziyo-tech.uz",
+      "https://ziyo-tech-teacher.vercel.app",
     ],
     credentials: true,
   })
