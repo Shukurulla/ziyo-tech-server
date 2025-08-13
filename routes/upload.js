@@ -1,3 +1,4 @@
+// routes/upload.js - CORS kodni olib tashlangan versiya
 import express from "express";
 import { videoUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import videoModel from "../model/video.model.js";
@@ -7,70 +8,9 @@ import path from "path";
 
 const router = express.Router();
 
-// CORS middleware for upload routes
-router.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173", 
-    "http://localhost:5174",
-    "https://ziyo-tech.uz",
-    "https://www.ziyo-tech.uz",
-    "https://teacher.ziyo-tech.uz",
-    "https://www.teacher.ziyo-tech.uz",
-    "https://ziyo-tech-teacher.vercel.app",
-    "https://ziyo-tech-student.vercel.app",
-    "https://student.ziyo-tech.uz",
-    "https://www.student.ziyo-tech.uz"
-  ];
-
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods", 
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires"
-  );
-
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
+// CORS middleware olib tashlash - index.js da global qilingan
 
 router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
-  // CORS headers for response
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173",
-    "http://localhost:5174", 
-    "https://ziyo-tech.uz",
-    "https://www.ziyo-tech.uz",
-    "https://teacher.ziyo-tech.uz",
-    "https://www.teacher.ziyo-tech.uz",
-    "https://ziyo-tech-teacher.vercel.app",
-    "https://ziyo-tech-student.vercel.app",
-    "https://student.ziyo-tech.uz",
-    "https://www.student.ziyo-tech.uz"
-  ];
-
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  res.header("Access-Control-Allow-Credentials", "true");
-
   try {
     const { title, description, video } = req.body;
     const files = req.files;
@@ -124,16 +64,18 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
     });
   } catch (err) {
     console.error("Upload error:", err);
-    
+
     // Clean up uploaded files on error
     if (req.files) {
-      Object.values(req.files).flat().forEach((file) => {
-        if (file.path && fs.existsSync(file.path)) {
-          fs.unlink(file.path, (unlinkErr) => {
-            if (unlinkErr) console.error("Error deleting file:", unlinkErr);
-          });
-        }
-      });
+      Object.values(req.files)
+        .flat()
+        .forEach((file) => {
+          if (file.path && fs.existsSync(file.path)) {
+            fs.unlink(file.path, (unlinkErr) => {
+              if (unlinkErr) console.error("Error deleting file:", unlinkErr);
+            });
+          }
+        });
     }
 
     res.status(500).json({

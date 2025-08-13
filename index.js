@@ -35,96 +35,18 @@ mongoose.connect(process.env.MONGO_URI).then(() => {
 
 const app = express();
 
-// PRODUCTION CORS FIX - VERCEL uchun
-app.use((req, res, next) => {
-  // Production doaminlar
-  const allowedOrigins = [
-    "https://ziyo-tech-student.vercel.app",
-    "https://ziyo-tech-teacher.vercel.app",
-    "https://ziyo-tech.uz",
-    "https://www.ziyo-tech.uz",
-    "https://teacher.ziyo-tech.uz",
-    "https://student.ziyo-tech.uz",
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173",
-    "http://localhost:5174",
-  ];
-
-  const origin = req.headers.origin;
-
-  // Har doim CORS headers qo'yish
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  } else {
-    // Agar origin allowed origins ichida bo'lmasa ham, * qo'yish
-    res.header("Access-Control-Allow-Origin", "*");
-  }
-
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,PUT,POST,DELETE,PATCH,OPTIONS"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,Pragma,Expires"
-  );
-  res.header("Access-Control-Max-Age", "86400");
-
-  // OPTIONS requests uchun
-  if (req.method === "OPTIONS") {
-    console.log("CORS Preflight request for:", req.url);
-    return res.status(200).end();
-  }
-
-  console.log(`Request: ${req.method} ${req.url} from origin: ${origin}`);
-  next();
-});
-
-// Additional CORS with cors package
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      "https://ziyo-tech-student.vercel.app",
-      "https://ziyo-tech-teacher.vercel.app",
-      "https://ziyo-tech.uz",
-      "https://www.ziyo-tech.uz",
-      "https://teacher.ziyo-tech.uz",
-      "https://student.ziyo-tech.uz",
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ];
-
-    // Allow requests with no origin (mobile apps, etc.)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log(`CORS: Origin ${origin} not allowed`);
-      // Production muhitida ham ruxsat berish
-      callback(null, true);
-    }
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: [
-    "Origin",
-    "X-Requested-With",
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "Cache-Control",
-    "Pragma",
-    "Expires",
-  ],
-  optionsSuccessStatus: 200,
-};
-
-app.use(cors(corsOptions));
+// =====================
+// ODDIY CORS KONFIGURATSIYASI
+// =====================
+app.use(
+  cors({
+    origin: "*", // Barcha domenlarni ruxsat berish
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
+    optionsSuccessStatus: 200,
+  })
+);
 
 // Body parsing
 app.use(express.json({ limit: "50mb" }));
@@ -183,32 +105,15 @@ app.use(multerErrorHandler);
 app.use((err, req, res, next) => {
   console.error("Global error:", err);
 
-  // CORS error headers
-  const origin = req.headers.origin;
-  if (origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-  }
+  // CORS headers for error responses
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Credentials", "true");
 
   res.status(500).json({
     status: "error",
     message: "Something went wrong!",
   });
 });
-
-// 404 handler
-// app.use("*", (req, res) => {
-//   const origin = req.headers.origin;
-//   if (origin) {
-//     res.header("Access-Control-Allow-Origin", origin);
-//     res.header("Access-Control-Allow-Credentials", "true");
-//   }
-
-//   res.status(404).json({
-//     status: "error",
-//     message: "Route not found",
-//   });
-// });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

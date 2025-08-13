@@ -7,47 +7,6 @@ import path from "path";
 
 const router = express.Router();
 
-// CORS middleware for all material routes
-router.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://ziyo-tech.uz",
-    "https://www.ziyo-tech.uz", 
-    "https://teacher.ziyo-tech.uz",
-    "https://www.teacher.ziyo-tech.uz",
-    "https://ziyo-tech-teacher.vercel.app",
-    "https://ziyo-tech-student.vercel.app",
-    "https://student.ziyo-tech.uz",
-    "https://www.student.ziyo-tech.uz"
-  ];
-
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, Expires"
-  );
-
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
-
 // Get all materials
 router.get("/materials", authMiddleware, async (req, res) => {
   try {
@@ -84,28 +43,6 @@ router.post(
   materialUpload,
   multerErrorHandler,
   async (req, res) => {
-    // Set CORS headers for response
-    const origin = req.headers.origin;
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "https://ziyo-tech.uz",
-      "https://www.ziyo-tech.uz",
-      "https://teacher.ziyo-tech.uz", 
-      "https://www.teacher.ziyo-tech.uz",
-      "https://ziyo-tech-teacher.vercel.app",
-      "https://ziyo-tech-student.vercel.app",
-      "https://student.ziyo-tech.uz",
-      "https://www.student.ziyo-tech.uz"
-    ];
-
-    if (allowedOrigins.includes(origin)) {
-      res.header("Access-Control-Allow-Origin", origin);
-    }
-    res.header("Access-Control-Allow-Credentials", "true");
-
     try {
       const { title, description, content, fileUrl } = req.body;
       const files = req.files;
@@ -218,28 +155,6 @@ router.put(
   materialUpload,
   multerErrorHandler,
   async (req, res) => {
-    // Set CORS headers
-    const origin = req.headers.origin;
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "https://ziyo-tech.uz",
-      "https://www.ziyo-tech.uz",
-      "https://teacher.ziyo-tech.uz",
-      "https://www.teacher.ziyo-tech.uz",
-      "https://ziyo-tech-teacher.vercel.app",
-      "https://ziyo-tech-student.vercel.app",
-      "https://student.ziyo-tech.uz",
-      "https://www.student.ziyo-tech.uz"
-    ];
-
-    if (allowedOrigins.includes(origin)) {
-      res.header("Access-Control-Allow-Origin", origin);
-    }
-    res.header("Access-Control-Allow-Credentials", "true");
-
     try {
       const { id } = req.params;
       const {
@@ -303,12 +218,8 @@ router.put(
             .replace(".", "");
         } else if (providedFileUrl) {
           updateData.fileUrl = providedFileUrl;
-        } else {
-          return res.status(400).json({
-            status: "error",
-            message: "File or fileUrl is required for file content type",
-          });
         }
+        // If no new file and no providedFileUrl, keep existing file
       } else if (content === "link") {
         if (!providedFileUrl) {
           return res.status(400).json({
