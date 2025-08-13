@@ -30,8 +30,8 @@ import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
 
 const app = express();
-
-app.use(
+app.options(
+  "*",
   cors({
     origin: [
       "http://localhost:5173",
