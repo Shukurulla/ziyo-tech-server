@@ -1,71 +1,71 @@
 import express from "express";
-import multer from "multer";
-import Client from "ssh2-sftp-client";
+import { videoUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import videoModel from "../model/video.model.js";
-import { getAccessToken } from "../utils/apiVideoAuth.js"; // token olish uchun
+import { getAccessToken } from "../utils/apiVideoAuth.js";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
+  try {
+    const { title, description, video } = req.body;
+    const files = req.files;
 
-const sftpConfig = {
-  host: "45.134.39.117",
-  port: 22,
-  username: "root",
-  password: "CH7aQhydDipRB9b1Jjrv",
-};
-
-router.post(
-  "/",
-  upload.fields([
-    { name: "audios", maxCount: 5 },
-    { name: "presentations", maxCount: 5 },
-  ]),
-  async (req, res) => {
-    try {
-      const { title, description, video } = req.body;
-
-      const timestamp = Date.now(); // hozirgi vaqtni olish
-
-      const sftp = new Client();
-      await sftp.connect(sftpConfig);
-
-      const audios = {};
-      const presentations = {};
-
-      // Audio fayllar
-      for (const file of req.files.audios || []) {
-        const uniqueName = `${timestamp}-${file.originalname}`;
-        const remotePath = `/media/files/${uniqueName}`;
-        await sftp.put(Buffer.from(file.buffer), remotePath);
-        audios[file.originalname] = `http://kepket.uz${remotePath}`;
-      }
-
-      // Prezentatsiyalar fayllari
-      for (const file of req.files.presentations || []) {
-        const uniqueName = `${timestamp}-${file.originalname}`;
-        const remotePath = `/media/files/${uniqueName}`;
-        await sftp.put(Buffer.from(file.buffer), remotePath);
-        presentations[file.originalname] = `http://kepket.uz${remotePath}`;
-      }
-
-      await sftp.end();
-
-      const saved = await videoModel.create({
-        video: JSON.parse(video),
-        title,
-        description,
-        presentations,
-        audios,
+    if (!files) {
+      return res.status(400).json({
+        status: "error",
+        message: "No files uploaded",
       });
-
-      res.json(saved);
-    } catch (err) {
-      console.error("Uploadda xatolik:", err.response?.data || err.message);
-      res.status(500).json({ error: "Upload muvaffaqiyatsiz tugadi." });
     }
+
+    // Process audio files
+    const audios = {};
+    if (files.audios) {
+      files.audios.forEach((file) => {
+        const ext = path.extname(file.originalname); // masalan: ".mp3"
+        const fileName = `${Date.now()}${ext}`;
+        const publicUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/uploads/audios/${fileName}`;
+        audios[file.originalname] = publicUrl;
+      });
+    }
+
+    // Process presentation files
+    const presentations = {};
+    if (files.presentations) {
+      files.presentations.forEach((file) => {
+        const ext = path.extname(file.originalname); // masalan: ".pptx"
+        const fileName = `${Date.now()}${ext}`;
+        const publicUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/uploads/presentations/${fileName}`;
+        presentations[file.originalname] = publicUrl;
+      });
+    }
+
+    // Save to database
+    const saved = await videoModel.create({
+      video: JSON.parse(video),
+      title,
+      description,
+      presentations,
+      audios,
+    });
+
+    res.json({
+      status: "success",
+      data: saved,
+      message: "Files uploaded successfully",
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({
+      status: "error",
+      message: "Upload failed: " + err.message,
+    });
   }
-);
+});
 
 export default router;

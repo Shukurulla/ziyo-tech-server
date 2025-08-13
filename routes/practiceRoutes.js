@@ -1,34 +1,31 @@
 import express from "express";
-import multer from "multer";
+import { practiceUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import Practice from "../model/practiceModel.js";
-import { uploadFileSFTP, deleteFileSFTP } from "../utils/sftpClient.js";
-import path from "path";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import studentModel from "../model/student.model.js";
 import teacherModel from "../model/teacher.model.js";
 import practiceWorkModel from "../model/practiceWork.model.js";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
 
-router.post("/", upload.single("file"), async (req, res) => {
+// Create practice
+router.post("/", practiceUpload, multerErrorHandler, async (req, res) => {
   try {
     const { title, description } = req.body;
     const file = req.file;
 
     if (!file) {
-      return res.status(400).json({ error: "Fayl yuborilmadi" });
+      return res.status(400).json({
+        status: "error",
+        message: "File is required",
+      });
     }
 
-    // ⬇️ Faqat timestamp bilan nomlash (masalan: 1746701989234.docx)
-    const ext = path.extname(file.originalname); // .docx
-    const fileName = `${Date.now()}${ext}`;
-
-    const remotePath = `/media/files/${fileName}`;
-    const fileUrl = `https://kepket.uz/media/files/${fileName}`;
-
-    await uploadFileSFTP(file.buffer, remotePath);
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
+      file.filename
+    }`;
 
     const newPractice = await Practice.create({
       title,
@@ -36,31 +33,46 @@ router.post("/", upload.single("file"), async (req, res) => {
       fileUrl,
     });
 
-    res.status(201).json(newPractice);
+    res.status(201).json({
+      status: "success",
+      data: newPractice,
+      message: "Practice created successfully",
+    });
   } catch (err) {
-    console.error("SFTP upload xatosi:", err.message);
-    res.status(500).json({ error: err.message });
+    // Clean up uploaded file in case of error
+    if (req.file) {
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Error deleting file:", err);
+      });
+    }
+
+    console.error("Practice creation error:", err.message);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + err.message,
+    });
   }
 });
 
-// ✅ O‘qish
+// Get practices
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.userData;
 
-    // Student yoki Teacher borligini tekshirish
+    // Check if user is student or teacher
     const student = await studentModel.findById(userId);
     const teacher = !student ? await teacherModel.findById(userId) : null;
 
     if (!student && !teacher) {
-      return res
-        .status(401)
-        .json({ status: "error", message: "Autentifikatsiya amalga oshmagan" });
+      return res.status(401).json({
+        status: "error",
+        message: "Authentication failed",
+      });
     }
 
     const practices = await Practice.find().sort({ createdAt: -1 });
 
-    // Agar foydalanuvchi student bo‘lsa, har bir practice uchun completed ni tekshir
+    // If user is student, check completed status
     if (student) {
       const enrichedPractices = await Promise.all(
         practices.map(async (practice) => {
@@ -76,17 +88,18 @@ router.get("/", authMiddleware, async (req, res) => {
         })
       );
 
-      return res.json({ data: enrichedPractices });
+      return res.json({ status: "success", data: enrichedPractices });
     }
 
-    // Agar teacher bo‘lsa
-    res.json({ data: practices });
+    // If teacher
+    res.json({ status: "success", data: practices });
   } catch (err) {
-    console.error("Xatolik:", err);
-    res.status(500).json({ status: "error", message: "Server xatosi" });
+    console.error("Error:", err);
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 });
 
+// Get practice by ID
 router.get("/:workId", authMiddleware, async (req, res) => {
   try {
     const { userId } = req.userData;
@@ -96,16 +109,18 @@ router.get("/:workId", authMiddleware, async (req, res) => {
     const teacher = !student ? await teacherModel.findById(userId) : null;
 
     if (!student && !teacher) {
-      return res
-        .status(401)
-        .json({ status: "error", message: "Autentifikatsiya amalga oshmagan" });
+      return res.status(401).json({
+        status: "error",
+        message: "Authentication failed",
+      });
     }
 
     const practice = await Practice.findById(workId);
     if (!practice) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "Practice topilmadi" });
+      return res.status(404).json({
+        status: "error",
+        message: "Practice not found",
+      });
     }
 
     if (student) {
@@ -115,6 +130,7 @@ router.get("/:workId", authMiddleware, async (req, res) => {
       });
 
       return res.json({
+        status: "success",
         data: {
           ...practice.toObject(),
           completed: !!work,
@@ -123,29 +139,48 @@ router.get("/:workId", authMiddleware, async (req, res) => {
       });
     }
 
-    // Teacher bo‘lsa
-    res.json({ data: practice });
+    // Teacher
+    res.json({ status: "success", data: practice });
   } catch (err) {
-    console.error("Xatolik:", err);
-    res.status(500).json({ status: "error", message: "Server xatosi" });
+    console.error("Error:", err);
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 });
 
-// ✅ O‘chirish
+// Delete practice
 router.delete("/:id", async (req, res) => {
-  const practice = await Practice.findById(req.params.id);
-  if (!practice)
-    return res
-      .status(404)
-      .json({ status: "error", message: "Bunday file topilmadi" });
+  try {
+    const practice = await Practice.findById(req.params.id);
 
-  const fileName = practice.fileUrl.split("/").pop();
-  const remotePath = `/media/files/${fileName}`;
+    if (!practice) {
+      return res.status(404).json({
+        status: "error",
+        message: "Practice not found",
+      });
+    }
 
-  await Practice.findByIdAndDelete(practice._id);
-  await deleteFileSFTP(remotePath);
+    // Delete file if it's stored locally
+    if (practice.fileUrl && practice.fileUrl.includes(req.get("host"))) {
+      const filename = path.basename(practice.fileUrl);
+      const filePath = path.join("uploads/files", filename);
+      fs.unlink(filePath, (err) => {
+        if (err) console.warn("Could not delete file:", err.message);
+      });
+    }
 
-  res.json({ message: "O‘chirildi" });
+    await Practice.findByIdAndDelete(practice._id);
+
+    res.json({
+      status: "success",
+      message: "Practice deleted successfully",
+    });
+  } catch (err) {
+    console.error("Delete error:", err);
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + err.message,
+    });
+  }
 });
 
 export default router;

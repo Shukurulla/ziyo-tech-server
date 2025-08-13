@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "install-ffmpeg": "echo 'Please install FFmpeg manually: https://ffmpeg.org/download.html'"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +22,9 @@
     "mongoose": "^8.14.1",
     "multer": "^1.4.5-lts.2",
     "node-fetch": "^3.3.2",
-    "nodemon": "^3.1.10",
-    "ssh2-sftp-client": "^12.0.0"
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

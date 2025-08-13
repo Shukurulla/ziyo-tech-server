@@ -1,32 +1,21 @@
 import express from "express";
-import multer from "multer";
-import Client from "ssh2-sftp-client";
+import { singleFileUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import practiceWorkModel from "../model/practiceWork.model.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import studentModel from "../model/student.model.js";
-import TeacherModel from "../model/teacher.model.js"; // Assume this exists
-import NotificationModel from "../model/notificationModel.js"; // Assume this exists
+import TeacherModel from "../model/teacher.model.js";
+import NotificationModel from "../model/notificationModel.js";
 import practiceModel from "../model/practiceModel.js";
+import fs from "fs";
 
 const router = express.Router();
 
-// Configure Multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-// SFTP configuration
-const sftpConfig = {
-  host: "45.134.39.117",
-  port: 22,
-  username: "root",
-  password: "CH7aQhydDipRB9b1Jjrv", // Replace with secure credentials
-};
-
-// Upload file route
+// Upload practice work file
 router.post(
   "/upload",
   authMiddleware,
-  upload.single("file"),
+  singleFileUpload,
+  multerErrorHandler,
   async (req, res) => {
     try {
       const { userId } = req.userData;
@@ -34,41 +23,48 @@ router.post(
       const file = req.file;
 
       if (!file || !practiceId) {
+        // Clean up uploaded file if validation fails
+        if (file) {
+          fs.unlink(file.path, (err) => {
+            if (err) console.error("Error deleting file:", err);
+          });
+        }
+
         return res.status(400).json({
           status: "error",
-          message: "Fayl yoki practiceId yetishmayapti",
+          message: "File and practiceId are required",
         });
       }
+
       const practice = await practiceModel.findById(practiceId);
       if (!practice) {
-        return res.status(403).json({
+        // Clean up uploaded file
+        fs.unlink(file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+
+        return res.status(404).json({
           status: "error",
-          message: "Bunday praktika malumotlari topilmadi",
+          message: "Practice not found",
         });
       }
+
       const student = await studentModel.findById(userId);
       if (!student) {
+        // Clean up uploaded file
+        fs.unlink(file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+
         return res.status(403).json({
           status: "error",
-          message: "Faqat talabalar fayl yuklashi mumkin",
+          message: "Only students can upload files",
         });
       }
 
-      const sftp = new Client();
-      await sftp.connect(sftpConfig);
-
-      const basePath = "/media/practice";
-      try {
-        await sftp.mkdir(basePath, true); // Create directory if it doesn't exist
-      } catch (err) {
-        if (err.message.indexOf("File exists") === -1) throw err;
-      }
-
-      const remotePath = `${basePath}/${Date.now()}_${file.originalname}`;
-      await sftp.put(Buffer.from(file.buffer), remotePath);
-      await sftp.end();
-
-      const fileUrl = `http://kepket.uz${remotePath}`;
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
+        file.filename
+      }`;
 
       const newWork = await practiceWorkModel.create({
         student: student._id,
@@ -83,8 +79,8 @@ router.post(
         const notification = new NotificationModel({
           recipientId: teacher._id,
           type: "submission",
-          title: `Yangi amaliyot: Practice ID ${practiceId}`,
-          message: `Talaba ${student._id} practice ID ${practiceId} uchun "${file.originalname}" faylini yubordi.`,
+          title: `New practice work: Practice ID ${practiceId}`,
+          message: `Student ${student._id} submitted "${file.originalname}" for practice ID ${practiceId}.`,
           relatedId: newWork._id,
           relatedType: "practiceWork",
           recipientType: "student",
@@ -97,12 +93,20 @@ router.post(
       res.json({
         status: "success",
         data: newWork,
+        message: "Practice work uploaded successfully",
       });
     } catch (err) {
-      console.error("Fayl yuklashda xatolik:", err);
+      // Clean up uploaded file in case of error
+      if (req.file) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error("Error deleting file:", err);
+        });
+      }
+
+      console.error("File upload error:", err);
       res.status(500).json({
         status: "error",
-        message: "Server xatosi: " + err.message,
+        message: "Server error: " + err.message,
       });
     }
   }

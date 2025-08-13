@@ -1,9 +1,18 @@
-// Update to index.js to include chat routes
 import express from "express";
 import cors from "cors";
 import { config } from "dotenv";
 import mongoose from "mongoose";
+import path from "path";
+import { fileURLToPath } from "url";
+import { multerErrorHandler } from "./utils/multerConfig.js";
+
+// Get current directory path for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 config();
+
+// Import routes
 import StudentRouter from "./routes/student.routes.js";
 import uploadRouter from "./routes/upload.js";
 import tokenRouter from "./routes/token.js";
@@ -18,7 +27,7 @@ import submissionRouter from "./routes/submissionsRoutes.js";
 import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
-import chatRouter from "./routes/chat.routes.js"; // Add chat routes
+import chatRouter from "./routes/chat.routes.js";
 
 const app = express();
 
@@ -27,13 +36,38 @@ app.use(
     origin: "*",
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Create uploads directories if they don't exist
+import fs from "fs";
+
+const uploadDirs = [
+  "uploads",
+  "uploads/videos",
+  "uploads/audios",
+  "uploads/presentations",
+  "uploads/files",
+  "uploads/thumbnails",
+  "uploads/others",
+];
+
+uploadDirs.forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
+  }
+});
 
 mongoose.connect(process.env.MONGO_URI).then(() => {
   console.log("database connected");
 });
 
+// Routes
 app.use("/api/student", StudentRouter);
 app.use("/api/teacher", teacherRouter);
 app.use("/api/upload", uploadRouter);
@@ -48,8 +82,20 @@ app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
-app.use("/api/chat", chatRouter); // Add chat routes
+app.use("/api/chat", chatRouter);
+
+// Global error handler for multer errors
+app.use(multerErrorHandler);
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("Global error handler:", err);
+  res.status(500).json({
+    status: "error",
+    message: "Something went wrong!",
+  });
+});
 
 app.listen(process.env.PORT, () => {
-  console.log(`server has ben started on port ${process.env.PORT}`);
+  console.log(`server has been started on port ${process.env.PORT}`);
 });

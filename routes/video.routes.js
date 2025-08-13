@@ -1,22 +1,13 @@
-// Enhanced video.routes.js
 import express from "express";
 import videoModel from "../model/video.model.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
-import Client from "ssh2-sftp-client";
-import multer from "multer";
+import { materialUpload, multerErrorHandler } from "../utils/multerConfig.js";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
 
-// SFTP configuration
-const sftpConfig = {
-  host: "45.134.39.117",
-  port: 22,
-  username: "root",
-  password: "CH7aQhydDipRB9b1Jjrv",
-};
-
+// Get all videos
 router.get("/all", async (req, res) => {
   try {
     const allVideos = await videoModel.find();
@@ -26,13 +17,16 @@ router.get("/all", async (req, res) => {
   }
 });
 
+// Get video by ID
 router.get("/:id", async (req, res) => {
   try {
     const findVideo = await videoModel.findById(req.params.id);
-    if (!findVideo)
-      return res
-        .status(400)
-        .json({ status: "error", message: "Bunday video topilmadi" });
+    if (!findVideo) {
+      return res.status(404).json({
+        status: "error",
+        message: "Video not found",
+      });
+    }
     res.json({ status: "success", data: findVideo });
   } catch (error) {
     res.status(500).json({ status: "error", message: error.message });
@@ -47,30 +41,27 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     const updateVideo = await videoModel.findByIdAndUpdate(
       videoId,
-      {
-        title,
-        description,
-      },
+      { title, description },
       { new: true }
     );
 
     if (!updateVideo) {
       return res.status(404).json({
         status: "error",
-        message: "Video topilmadi",
+        message: "Video not found",
       });
     }
 
     res.json({
       status: "success",
-      message: "Video muvaffaqiyatli yangilandi",
+      message: "Video updated successfully",
       data: updateVideo,
     });
   } catch (error) {
     console.error("Video update error:", error);
     res.status(500).json({
       status: "error",
-      message: "Serverda xatolik yuz berdi",
+      message: "Server error: " + error.message,
     });
   }
 });
@@ -79,50 +70,54 @@ router.put("/:id", authMiddleware, async (req, res) => {
 router.post(
   "/update-files",
   authMiddleware,
-  upload.fields([
-    { name: "audios", maxCount: 5 },
-    { name: "presentations", maxCount: 5 },
-  ]),
+  materialUpload,
+  multerErrorHandler,
   async (req, res) => {
     try {
       const { videoId, title, description } = req.body;
+      const files = req.files;
 
       // Find the existing video
       const existingVideo = await videoModel.findById(videoId);
       if (!existingVideo) {
+        // Clean up uploaded files
+        if (files) {
+          Object.values(files)
+            .flat()
+            .forEach((file) => {
+              fs.unlink(file.path, (err) => {
+                if (err) console.error("Error deleting file:", err);
+              });
+            });
+        }
+
         return res.status(404).json({
           status: "error",
-          message: "Video topilmadi",
+          message: "Video not found",
         });
       }
 
-      const timestamp = Date.now();
-      const sftp = new Client();
-      await sftp.connect(sftpConfig);
-
       // Process new audio files
       const newAudios = {};
-      if (req.files.audios && req.files.audios.length > 0) {
-        for (const file of req.files.audios) {
-          const uniqueName = `${timestamp}-${file.originalname}`;
-          const remotePath = `/media/files/${uniqueName}`;
-          await sftp.put(Buffer.from(file.buffer), remotePath);
-          newAudios[file.originalname] = `http://kepket.uz${remotePath}`;
-        }
+      if (files && files.audios && files.audios.length > 0) {
+        files.audios.forEach((file) => {
+          const fileUrl = `${req.protocol}://${req.get(
+            "host"
+          )}/uploads/audios/${file.filename}`;
+          newAudios[file.originalname] = fileUrl;
+        });
       }
 
       // Process new presentation files
       const newPresentations = {};
-      if (req.files.presentations && req.files.presentations.length > 0) {
-        for (const file of req.files.presentations) {
-          const uniqueName = `${timestamp}-${file.originalname}`;
-          const remotePath = `/media/files/${uniqueName}`;
-          await sftp.put(Buffer.from(file.buffer), remotePath);
-          newPresentations[file.originalname] = `http://kepket.uz${remotePath}`;
-        }
+      if (files && files.presentations && files.presentations.length > 0) {
+        files.presentations.forEach((file) => {
+          const fileUrl = `${req.protocol}://${req.get(
+            "host"
+          )}/uploads/presentations/${file.filename}`;
+          newPresentations[file.originalname] = fileUrl;
+        });
       }
-
-      await sftp.end();
 
       // Merge with existing files
       const updatedAudios = {
@@ -149,14 +144,25 @@ router.post(
 
       res.json({
         status: "success",
-        message: "Video fayllar muvaffaqiyatli yangilandi",
+        message: "Video files updated successfully",
         data: updatedVideo,
       });
     } catch (error) {
+      // Clean up uploaded files in case of error
+      if (req.files) {
+        Object.values(req.files)
+          .flat()
+          .forEach((file) => {
+            fs.unlink(file.path, (err) => {
+              if (err) console.error("Error deleting file:", err);
+            });
+          });
+      }
+
       console.error("Video files update error:", error);
       res.status(500).json({
         status: "error",
-        message: "Serverda xatolik yuz berdi: " + error.message,
+        message: "Server error: " + error.message,
       });
     }
   }
@@ -172,25 +178,19 @@ router.post("/delete-file", authMiddleware, async (req, res) => {
     if (!video) {
       return res.status(404).json({
         status: "error",
-        message: "Video topilmadi",
+        message: "Video not found",
       });
     }
 
-    // Delete the file from SFTP server
+    // Delete the file from local storage
     const fileUrl = video[fileType][fileName];
-    if (fileUrl && fileUrl.startsWith("http://kepket.uz")) {
-      const remotePath = fileUrl.replace("http://kepket.uz", "");
-
-      const sftp = new Client();
-      await sftp.connect(sftpConfig);
-
-      try {
-        await sftp.delete(remotePath);
-      } catch (err) {
-        console.warn(`Could not delete file: ${remotePath}`, err.message);
-      }
-
-      await sftp.end();
+    if (fileUrl && fileUrl.includes(req.get("host"))) {
+      const filename = path.basename(fileUrl);
+      const filePath = path.join("uploads", fileType, filename);
+      fs.unlink(filePath, (err) => {
+        if (err)
+          console.warn(`Could not delete file: ${filePath}`, err.message);
+      });
     }
 
     // Remove from database
@@ -208,14 +208,14 @@ router.post("/delete-file", authMiddleware, async (req, res) => {
 
     res.json({
       status: "success",
-      message: "Fayl muvaffaqiyatli o'chirildi",
+      message: "File deleted successfully",
       data: updatedVideo,
     });
   } catch (error) {
     console.error("File delete error:", error);
     res.status(500).json({
       status: "error",
-      message: "Serverda xatolik yuz berdi",
+      message: "Server error: " + error.message,
     });
   }
 });
@@ -230,60 +230,57 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     if (!video) {
       return res.status(404).json({
         status: "error",
-        message: "Video topilmadi",
+        message: "Video not found",
       });
     }
 
     // Delete the video from the database
     await videoModel.findByIdAndDelete(videoId);
 
-    // Delete associated files from SFTP server
-    const sftp = new Client();
-    await sftp.connect(sftpConfig);
-
+    // Delete associated files from local storage
     try {
       // Delete presentation files
       for (const [_, url] of Object.entries(video.presentations)) {
-        if (url.startsWith("http://kepket.uz")) {
-          const remotePath = url.replace("http://kepket.uz", "");
-          try {
-            await sftp.delete(remotePath);
-          } catch (err) {
-            console.warn(
-              `Could not delete presentation file: ${remotePath}`,
-              err.message
-            );
-          }
+        if (url.includes(req.get("host"))) {
+          const filename = path.basename(url);
+          const filePath = path.join("uploads/presentations", filename);
+          fs.unlink(filePath, (err) => {
+            if (err)
+              console.warn(
+                `Could not delete presentation file: ${filePath}`,
+                err.message
+              );
+          });
         }
       }
 
       // Delete audio files
       for (const [_, url] of Object.entries(video.audios)) {
-        if (url.startsWith("http://kepket.uz")) {
-          const remotePath = url.replace("http://kepket.uz", "");
-          try {
-            await sftp.delete(remotePath);
-          } catch (err) {
-            console.warn(
-              `Could not delete audio file: ${remotePath}`,
-              err.message
-            );
-          }
+        if (url.includes(req.get("host"))) {
+          const filename = path.basename(url);
+          const filePath = path.join("uploads/audios", filename);
+          fs.unlink(filePath, (err) => {
+            if (err)
+              console.warn(
+                `Could not delete audio file: ${filePath}`,
+                err.message
+              );
+          });
         }
       }
-    } finally {
-      await sftp.end();
+    } catch (deleteError) {
+      console.warn("Error deleting some files:", deleteError.message);
     }
 
     res.json({
       status: "success",
-      message: "Video va tegishli fayllar muvaffaqiyatli o'chirildi",
+      message: "Video and associated files deleted successfully",
     });
   } catch (error) {
     console.error("Video delete error:", error);
     res.status(500).json({
       status: "error",
-      message: "Serverda xatolik yuz berdi",
+      message: "Server error: " + error.message,
     });
   }
 });

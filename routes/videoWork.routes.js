@@ -1,115 +1,144 @@
 import express from "express";
-import multer from "multer";
-import Client from "ssh2-sftp-client";
+import {
+  multipleFilesUpload,
+  multerErrorHandler,
+} from "../utils/multerConfig.js";
 import videoWorkModel from "../model/videoWork.model.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import studentModel from "../model/student.model.js";
-import TeacherModel from "../model/teacher.model.js"; // Assume this exists
-import NotificationModel from "../model/notificationModel.js"; // Assume this exists
+import TeacherModel from "../model/teacher.model.js";
+import NotificationModel from "../model/notificationModel.js";
+import fs from "fs";
+import path from "path";
 
 const router = express.Router();
 
-// Configure Multer for file uploads
-const storage = multer.memoryStorage();
-const upload = multer({ storage }).array("files"); // Allow multiple files
-
-// SFTP configuration
-const sftpConfig = {
-  host: "45.134.39.117",
-  port: 22,
-  username: "root",
-  password: "CH7aQhydDipRB9b1Jjrv", // Replace with secure credentials
-};
-
-router.post("/", upload, authMiddleware, async (req, res) => {
-  try {
-    const { userId } = req.userData;
-    const { videoId } = req.body;
-
-    if (!videoId) {
-      return res.status(400).json({ error: "Ma'lumotlar to‘liq emas." });
-    }
-
-    const files = req.files;
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: "Fayllar topilmadi." });
-    }
-
-    const findStudent = await studentModel.findById(userId);
-    if (!findStudent) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "Bunday student topilmadi" });
-    }
-
-    const sftp = new Client();
-    await sftp.connect(sftpConfig);
-
-    const basePath = "/media/files";
+// Upload video work files
+router.post(
+  "/",
+  authMiddleware,
+  multipleFilesUpload,
+  multerErrorHandler,
+  async (req, res) => {
     try {
-      await sftp.mkdir(basePath, true); // Create directory if it doesn't exist
+      const { userId } = req.userData;
+      const { videoId } = req.body;
+      const files = req.files;
+
+      if (!videoId) {
+        // Clean up uploaded files
+        if (files) {
+          files.forEach((file) => {
+            fs.unlink(file.path, (err) => {
+              if (err) console.error("Error deleting file:", err);
+            });
+          });
+        }
+
+        return res.status(400).json({
+          status: "error",
+          message: "Video ID is required",
+        });
+      }
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "No files uploaded",
+        });
+      }
+
+      const findStudent = await studentModel.findById(userId);
+      if (!findStudent) {
+        // Clean up uploaded files
+        files.forEach((file) => {
+          fs.unlink(file.path, (err) => {
+            if (err) console.error("Error deleting file:", err);
+          });
+        });
+
+        return res.status(400).json({
+          status: "error",
+          message: "Student not found",
+        });
+      }
+
+      // Process uploaded files
+      const works = [];
+      for (const file of files) {
+        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
+          file.filename
+        }`;
+        const fileNameWithoutExt = path.parse(file.originalname).name;
+
+        works.push({
+          title: fileNameWithoutExt,
+          fileUrl: fileUrl,
+        });
+      }
+
+      const newRecord = await videoWorkModel.create({
+        studentId: findStudent._id,
+        videoId,
+        works,
+      });
+
+      // Send notification to all teachers
+      const teachers = await TeacherModel.find();
+      for (const teacher of teachers) {
+        const notification = new NotificationModel({
+          recipientId: teacher._id,
+          type: "submission",
+          title: `New video work: Video ID ${videoId}`,
+          message: `Student ${findStudent._id} uploaded ${files.length} files for video ID ${videoId}.`,
+          relatedId: newRecord._id,
+          relatedType: "videoWork",
+          workId: videoId,
+          recipientType: "student",
+        });
+        await notification.save();
+      }
+
+      res.json({
+        status: "success",
+        data: newRecord,
+        message: "Video work uploaded successfully",
+      });
     } catch (err) {
-      if (err.message.indexOf("File exists") === -1) throw err;
-    }
+      // Clean up uploaded files in case of error
+      if (req.files) {
+        req.files.forEach((file) => {
+          fs.unlink(file.path, (err) => {
+            if (err) console.error("Error deleting file:", err);
+          });
+        });
+      }
 
-    const works = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const remotePath = `${basePath}/${Date.now()}_${file.originalname}`;
-      await sftp.put(Buffer.from(file.buffer), remotePath);
-
-      const fileNameWithoutExt = file.originalname
-        .split(".")
-        .slice(0, -1)
-        .join(".");
-      works.push({
-        title: fileNameWithoutExt,
-        fileUrl: `http://kepket.uz${remotePath}`,
+      console.error("Error:", err);
+      res.status(500).json({
+        status: "error",
+        message: "Upload failed: " + err.message,
       });
     }
-    await sftp.end();
-
-    const newRecord = await videoWorkModel.create({
-      studentId: findStudent._id,
-      videoId,
-      works,
-    });
-
-    // Send notification to all teachers
-    const teachers = await TeacherModel.find();
-    for (const teacher of teachers) {
-      const notification = new NotificationModel({
-        recipientId: teacher._id,
-        type: "submission",
-        title: `Yangi video vazifasi: Video ID ${videoId}`,
-        message: `Talaba ${findStudent._id} video ID ${videoId} uchun ${files.length} ta fayl yubordi.`,
-        relatedId: newRecord._id,
-        relatedType: "videoWork",
-        workId: videoId,
-        recipientType: "student",
-      });
-      await notification.save();
-    }
-
-    res.json({ data: newRecord, status: "success" });
-  } catch (err) {
-    console.error("Xatolik:", err);
-    res.status(500).json({ error: "Yuklashda xatolik yuz berdi." });
   }
-});
+);
 
+// Get video work by ID
 router.get("/:videoId", async (req, res) => {
   try {
     const works = await videoWorkModel.findOne({ videoId: req.params.videoId });
     if (!works) {
-      return res.status(400).json({
+      return res.status(404).json({
         status: "error",
-        message: "Bu videoga tegishli vazifalar topilmadi",
+        message: "No video works found for this video",
       });
     }
     res.json({ status: "success", data: works });
   } catch (error) {
-    res.status(500).json({ status: "error", message: error.message });
+    res.status(500).json({
+      status: "error",
+      message: "Server error: " + error.message,
+    });
   }
 });
 
