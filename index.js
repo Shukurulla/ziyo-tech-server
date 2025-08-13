@@ -197,18 +197,18 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use("*", (req, res) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-  }
+// app.use("*", (req, res) => {
+//   const origin = req.headers.origin;
+//   if (origin) {
+//     res.header("Access-Control-Allow-Origin", origin);
+//     res.header("Access-Control-Allow-Credentials", "true");
+//   }
 
-  res.status(404).json({
-    status: "error",
-    message: "Route not found",
-  });
-});
+//   res.status(404).json({
+//     status: "error",
+//     message: "Route not found",
+//   });
+// });
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
