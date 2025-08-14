@@ -41,10 +41,10 @@ const app = express();
 app.use(
   cors({
     origin: "*", // Barcha domenlarni ruxsat berish
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
-    optionsSuccessStatus: 200,
+    // credentials: true,
+    // methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    // allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
+    // optionsSuccessStatus: 200,
   })
 );
 
@@ -116,7 +116,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, "127.0.0.1", () => {
   console.log(`Server started on port ${PORT}`);
 });
 
