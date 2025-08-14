@@ -1,3 +1,4 @@
+// routes/videoWork.routes.js - Fixed version
 import express from "express";
 import {
   multipleFilesUpload,
@@ -12,6 +13,15 @@ import fs from "fs";
 import path from "path";
 
 const router = express.Router();
+
+// Helper function to get correct domain based on request
+const getDomainFromRequest = (req) => {
+  const host = req.get("host");
+  if (host.includes("teacher.")) {
+    return "https://teacher.ziyo-tech.uz";
+  }
+  return "https://ziyo-tech.uz";
+};
 
 // Upload video work files
 router.post(
@@ -63,12 +73,13 @@ router.post(
         });
       }
 
+      // Get the correct domain for file URLs
+      const domain = getDomainFromRequest(req);
+
       // Process uploaded files
       const works = [];
       for (const file of files) {
-        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
-          file.filename
-        }`;
+        const fileUrl = `${domain}/uploads/files/${file.filename}`;
         const fileNameWithoutExt = path.parse(file.originalname).name;
 
         works.push({

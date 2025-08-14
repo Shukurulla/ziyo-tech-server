@@ -1,4 +1,4 @@
-// routes/upload.js - CORS kodni olib tashlangan versiya
+// routes/upload.js - Fixed version
 import express from "express";
 import { videoUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import videoModel from "../model/video.model.js";
@@ -8,7 +8,14 @@ import path from "path";
 
 const router = express.Router();
 
-// CORS middleware olib tashlash - index.js da global qilingan
+// Helper function to get correct domain based on request
+const getDomainFromRequest = (req) => {
+  const host = req.get("host");
+  if (host.includes("teacher.")) {
+    return "https://teacher.ziyo-tech.uz";
+  }
+  return "https://ziyo-tech.uz";
+};
 
 router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
   try {
@@ -22,15 +29,15 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
       });
     }
 
+    // Get the correct domain for file URLs
+    const domain = getDomainFromRequest(req);
+
     // Process audio files
     const audios = {};
     if (files.audios) {
       files.audios.forEach((file) => {
-        const ext = path.extname(file.originalname);
-        const fileName = `${Date.now()}${ext}`;
-        const publicUrl = `${req.protocol}://${req.get(
-          "host"
-        )}/uploads/audios/${file.filename}`;
+        // Use the original filename as key and create proper URL
+        const publicUrl = `${domain}/uploads/audios/${file.filename}`;
         audios[file.originalname] = publicUrl;
       });
     }
@@ -39,11 +46,8 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
     const presentations = {};
     if (files.presentations) {
       files.presentations.forEach((file) => {
-        const ext = path.extname(file.originalname);
-        const fileName = `${Date.now()}${ext}`;
-        const publicUrl = `${req.protocol}://${req.get(
-          "host"
-        )}/uploads/presentations/${file.filename}`;
+        // Use the original filename as key and create proper URL
+        const publicUrl = `${domain}/uploads/presentations/${file.filename}`;
         presentations[file.originalname] = publicUrl;
       });
     }

@@ -1,3 +1,4 @@
+// routes/video.routes.js - Fixed version with correct URL generation
 import express from "express";
 import videoModel from "../model/video.model.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
@@ -6,6 +7,15 @@ import fs from "fs";
 import path from "path";
 
 const router = express.Router();
+
+// Helper function to get correct domain based on request
+const getDomainFromRequest = (req) => {
+  const host = req.get("host");
+  if (host.includes("teacher.")) {
+    return "https://teacher.ziyo-tech.uz";
+  }
+  return "https://ziyo-tech.uz";
+};
 
 // Get all videos
 router.get("/all", async (req, res) => {
@@ -97,13 +107,14 @@ router.post(
         });
       }
 
+      // Get the correct domain for file URLs
+      const domain = getDomainFromRequest(req);
+
       // Process new audio files
       const newAudios = {};
       if (files && files.audios && files.audios.length > 0) {
         files.audios.forEach((file) => {
-          const fileUrl = `${req.protocol}://${req.get(
-            "host"
-          )}/uploads/audios/${file.filename}`;
+          const fileUrl = `${domain}/uploads/audios/${file.filename}`;
           newAudios[file.originalname] = fileUrl;
         });
       }
@@ -112,9 +123,7 @@ router.post(
       const newPresentations = {};
       if (files && files.presentations && files.presentations.length > 0) {
         files.presentations.forEach((file) => {
-          const fileUrl = `${req.protocol}://${req.get(
-            "host"
-          )}/uploads/presentations/${file.filename}`;
+          const fileUrl = `${domain}/uploads/presentations/${file.filename}`;
           newPresentations[file.originalname] = fileUrl;
         });
       }
@@ -184,7 +193,7 @@ router.post("/delete-file", authMiddleware, async (req, res) => {
 
     // Delete the file from local storage
     const fileUrl = video[fileType][fileName];
-    if (fileUrl && fileUrl.includes(req.get("host"))) {
+    if (fileUrl && fileUrl.includes("ziyo-tech.uz")) {
       const filename = path.basename(fileUrl);
       const filePath = path.join("uploads", fileType, filename);
       fs.unlink(filePath, (err) => {
@@ -241,7 +250,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     try {
       // Delete presentation files
       for (const [_, url] of Object.entries(video.presentations)) {
-        if (url.includes(req.get("host"))) {
+        if (url.includes("ziyo-tech.uz")) {
           const filename = path.basename(url);
           const filePath = path.join("uploads/presentations", filename);
           fs.unlink(filePath, (err) => {
@@ -256,7 +265,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 
       // Delete audio files
       for (const [_, url] of Object.entries(video.audios)) {
-        if (url.includes(req.get("host"))) {
+        if (url.includes("ziyo-tech.uz")) {
           const filename = path.basename(url);
           const filePath = path.join("uploads/audios", filename);
           fs.unlink(filePath, (err) => {

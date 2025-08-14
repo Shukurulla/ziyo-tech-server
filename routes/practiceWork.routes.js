@@ -1,3 +1,4 @@
+// routes/practiceWork.routes.js - Fixed version
 import express from "express";
 import { singleFileUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import practiceWorkModel from "../model/practiceWork.model.js";
@@ -9,6 +10,15 @@ import practiceModel from "../model/practiceModel.js";
 import fs from "fs";
 
 const router = express.Router();
+
+// Helper function to get correct domain based on request
+const getDomainFromRequest = (req) => {
+  const host = req.get("host");
+  if (host.includes("teacher.")) {
+    return "https://teacher.ziyo-tech.uz";
+  }
+  return "https://ziyo-tech.uz";
+};
 
 // Upload practice work file
 router.post(
@@ -62,9 +72,9 @@ router.post(
         });
       }
 
-      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
-        file.filename
-      }`;
+      // Get the correct domain for file URLs
+      const domain = getDomainFromRequest(req);
+      const fileUrl = `${domain}/uploads/files/${file.filename}`;
 
       const newWork = await practiceWorkModel.create({
         student: student._id,

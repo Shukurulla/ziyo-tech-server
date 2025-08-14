@@ -1,3 +1,4 @@
+// routes/practiceRoutes.js - Fixed version
 import express from "express";
 import { practiceUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import Practice from "../model/practiceModel.js";
@@ -9,6 +10,15 @@ import fs from "fs";
 import path from "path";
 
 const router = express.Router();
+
+// Helper function to get correct domain based on request
+const getDomainFromRequest = (req) => {
+  const host = req.get("host");
+  if (host.includes("teacher.")) {
+    return "https://teacher.ziyo-tech.uz";
+  }
+  return "https://ziyo-tech.uz";
+};
 
 // Create practice
 router.post("/", practiceUpload, multerErrorHandler, async (req, res) => {
@@ -23,9 +33,9 @@ router.post("/", practiceUpload, multerErrorHandler, async (req, res) => {
       });
     }
 
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/files/${
-      file.filename
-    }`;
+    // Get the correct domain for file URLs
+    const domain = getDomainFromRequest(req);
+    const fileUrl = `${domain}/uploads/files/${file.filename}`;
 
     const newPractice = await Practice.create({
       title,
@@ -160,7 +170,7 @@ router.delete("/:id", async (req, res) => {
     }
 
     // Delete file if it's stored locally
-    if (practice.fileUrl && practice.fileUrl.includes(req.get("host"))) {
+    if (practice.fileUrl && practice.fileUrl.includes("ziyo-tech.uz")) {
       const filename = path.basename(practice.fileUrl);
       const filePath = path.join("uploads/files", filename);
       fs.unlink(filePath, (err) => {
