@@ -40,11 +40,11 @@ const app = express();
 // =====================
 app.use(
   cors({
-    origin: "*", // Barcha domenlarni ruxsat berish
-    // credentials: true,
-    // methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    origin: ["https://ziyo-tech-teacher.vercel.app"], // Barcha domenlarni ruxsat berish
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     // allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
-    // optionsSuccessStatus: 200,
+    optionsSuccessStatus: 200,
   })
 );
 
