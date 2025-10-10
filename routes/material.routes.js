@@ -1,4 +1,3 @@
-// routes/material.routes.js - Fixed version with correct URL generation
 import express from "express";
 import { materialUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import MaterialModel from "../model/material.model.js";
@@ -7,15 +6,6 @@ import fs from "fs";
 import path from "path";
 
 const router = express.Router();
-
-// Helper function to get correct domain based on request
-const getDomainFromRequest = (req) => {
-  const host = req.get("host");
-  if (host.includes("teacher.")) {
-    return "https://teacher.ziyo-tech.uz";
-  }
-  return "https://ziyo-tech.uz";
-};
 
 // Get all materials
 router.get("/materials", authMiddleware, async (req, res) => {
@@ -76,9 +66,6 @@ router.post(
         });
       }
 
-      // Get the correct domain for file URLs
-      const domain = getDomainFromRequest(req);
-
       let fileUrlResult = "";
       let fileType = "";
       let thumbnailUrl = "";
@@ -93,7 +80,9 @@ router.post(
         }
 
         const file = files.file[0];
-        fileUrlResult = `${domain}/uploads/files/${file.filename}`;
+        fileUrlResult = `${req.protocol}://${req.get(
+          "host"
+        )}/api/uploads/files/${file.filename}`;
         fileType = path
           .extname(file.originalname)
           .toLowerCase()
@@ -117,7 +106,9 @@ router.post(
       // Process thumbnail if present
       if (files && files.thumbnail && files.thumbnail[0]) {
         const thumbnail = files.thumbnail[0];
-        thumbnailUrl = `${domain}/uploads/thumbnails/${thumbnail.filename}`;
+        thumbnailUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/api/uploads/thumbnails/${thumbnail.filename}`;
       }
 
       // Create new material
@@ -157,7 +148,7 @@ router.post(
   }
 );
 
-// Update material - also needs to be fixed
+// Update material
 router.put(
   "/materials/:id",
   authMiddleware,
@@ -202,16 +193,13 @@ router.put(
         });
       }
 
-      // Get the correct domain for file URLs
-      const domain = getDomainFromRequest(req);
-
       const updateData = { title, description, content };
 
       // Handle file update
       if (content === "file") {
         if (files && files.file && files.file[0]) {
           // Delete old file if it exists locally
-          if (material.fileUrl && material.fileUrl.includes("ziyo-tech.uz")) {
+          if (material.fileUrl && material.fileUrl.includes(req.get("host"))) {
             const oldFilename = path.basename(material.fileUrl);
             const oldFilePath = path.join("uploads/files", oldFilename);
             fs.unlink(oldFilePath, (err) => {
@@ -221,7 +209,9 @@ router.put(
 
           // Set new file
           const file = files.file[0];
-          updateData.fileUrl = `${domain}/uploads/files/${file.filename}`;
+          updateData.fileUrl = `${req.protocol}://${req.get(
+            "host"
+          )}/api/uploads/files/${file.filename}`;
           updateData.fileType = path
             .extname(file.originalname)
             .toLowerCase()
@@ -244,7 +234,7 @@ router.put(
         if (
           material.content === "file" &&
           material.fileUrl &&
-          material.fileUrl.includes("ziyo-tech.uz")
+          material.fileUrl.includes(req.get("host"))
         ) {
           const oldFilename = path.basename(material.fileUrl);
           const oldFilePath = path.join("uploads/files", oldFilename);
@@ -259,7 +249,7 @@ router.put(
         // Delete old thumbnail if it exists locally
         if (
           material.thumbnailUrl &&
-          material.thumbnailUrl.includes("ziyo-tech.uz")
+          material.thumbnailUrl.includes(req.get("host"))
         ) {
           const oldThumbnailName = path.basename(material.thumbnailUrl);
           const oldThumbnailPath = path.join(
@@ -273,7 +263,9 @@ router.put(
         }
 
         const thumbnail = files.thumbnail[0];
-        updateData.thumbnailUrl = `${domain}/uploads/thumbnails/${thumbnail.filename}`;
+        updateData.thumbnailUrl = `${req.protocol}://${req.get(
+          "host"
+        )}/uploads/api/thumbnails/${thumbnail.filename}`;
       }
 
       // Update material
@@ -309,7 +301,7 @@ router.put(
   }
 );
 
-// Delete material - also needs small fix
+// Delete material
 router.delete("/materials/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -323,7 +315,7 @@ router.delete("/materials/:id", authMiddleware, async (req, res) => {
     }
 
     // Delete main file if it's stored locally
-    if (material.fileUrl && material.fileUrl.includes("ziyo-tech.uz")) {
+    if (material.fileUrl && material.fileUrl.includes(req.get("host"))) {
       const filename = path.basename(material.fileUrl);
       const filePath = path.join("uploads/files", filename);
       fs.unlink(filePath, (err) => {
@@ -334,7 +326,7 @@ router.delete("/materials/:id", authMiddleware, async (req, res) => {
     // Delete thumbnail if it's stored locally
     if (
       material.thumbnailUrl &&
-      material.thumbnailUrl.includes("ziyo-tech.uz")
+      material.thumbnailUrl.includes(req.get("host"))
     ) {
       const thumbnailName = path.basename(material.thumbnailUrl);
       const thumbnailPath = path.join("uploads/thumbnails", thumbnailName);
