@@ -38,7 +38,15 @@ const app = express();
 // =====================
 // ODDIY CORS KONFIGURATSIYASI
 // =====================
-app.use(cors());
+app.use(
+  cors({
+    origin: ["https://ziyo-tech-teacher.vercel.app"], // Barcha domenlarni ruxsat berish
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    // allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
+    optionsSuccessStatus: 200,
+  })
+);
 
 // Body parsing
 app.use(express.json({ limit: "50mb" }));
