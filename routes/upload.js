@@ -9,13 +9,6 @@ import path from "path";
 const router = express.Router();
 
 // Helper function to get correct domain based on request
-const getDomainFromRequest = (req) => {
-  const host = req.get("host");
-  if (host.includes("teacher.")) {
-    return "https://teacher.ziyo-tech.uz";
-  }
-  return "https://ziyo-tech.uz";
-};
 
 router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
   try {
@@ -30,7 +23,7 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
     }
 
     // Get the correct domain for file URLs
-    const domain = getDomainFromRequest(req);
+    const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
 
     // Process audio files
     const audios = {};
