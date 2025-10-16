@@ -8,8 +8,6 @@ import path from "path";
 
 const router = express.Router();
 
-// Helper function to get correct domain based on request
-
 router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
   try {
     const { title, description, video } = req.body;

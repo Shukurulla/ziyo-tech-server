@@ -34,7 +34,7 @@ router.post("/", practiceUpload, multerErrorHandler, async (req, res) => {
     }
 
     // Get the correct domain for file URLs
-    const domain = getDomainFromRequest(req);
+    const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
     const fileUrl = `${domain}/uploads/files/${file.filename}`;
 
     const newPractice = await Practice.create({
