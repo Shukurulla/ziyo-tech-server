@@ -30,4 +30,4 @@ const videoWorkSchema = new mongoose.Schema(
 
 const videoWorkModel = mongoose.model("videoWorks", videoWorkSchema);
 
-export default videoWorkModel;
+export default  videoWorkModel;

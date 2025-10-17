@@ -23,6 +23,9 @@ import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
+import MaterialModel from "./model/material.model.js";
+import videoWorkModel from "./model/videoWork.model.js";
+import practiceModel from "./model/practiceModel.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +80,55 @@ app.get("/health", (req, res) => {
     cors: "enabled",
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get("/change-domain-data", async (req, res) => {
+  try {
+    const materials = await MaterialModel.updateMany(
+      { fileUrl: { $regex: "^http://server\\.ziyo-tech\\.uz/api" } },
+      [
+        {
+          $set: {
+            fileUrl: {
+              $replaceOne: {
+                input: "$fileUrl",
+                find: "http://server.ziyo-tech.uz/api",
+                replacement: "https://server.ziyo-tech.uz",
+              },
+            },
+          },
+        },
+      ]
+    );
+
+    const practices = await practiceModel.updateMany(
+      { fileUrl: { $regex: "^http://server\\.ziyo-tech\\.uz/api" } },
+      [
+        {
+          $set: {
+            fileUrl: {
+              $replaceOne: {
+                input: "$fileUrl",
+                find: "http://server.ziyo-tech.uz/api",
+                replacement: "https://server.ziyo-tech.uz",
+              },
+            },
+          },
+        },
+      ]
+    );
+
+    res.status(200).json({
+      status: "success",
+      materials,
+      practices,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
 });
 
 // Routes
