@@ -7,7 +7,8 @@ import { fileURLToPath } from "url";
 import { multerErrorHandler } from "./utils/multerConfig.js";
 import fs from "fs";
 
-// Import routes
+// Routers
+import glossaryRouter from "./routes/glossary.routes.js";
 import StudentRouter from "./routes/student.routes.js";
 import uploadRouter from "./routes/upload.js";
 import tokenRouter from "./routes/token.js";
@@ -24,38 +25,77 @@ import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
 
+// Models va utils
+import MaterialModel from "./model/material.model.js";
+import videoWorkModel from "./model/videoWork.model.js";
+import practiceModel from "./model/practiceModel.js";
+import migrateFileUrls from "./utils/migrateUrls.js";
+
+// Fayl yo‘llari
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// .env yuklash
 config();
-
-mongoose.connect(process.env.MONGO_URI).then(() => {
-  console.log("database connected");
-});
 
 const app = express();
 
 // =====================
-// ODDIY CORS KONFIGURATSIYASI
+// ✅ CORS TO‘G‘RI KONFIGURATSIYASI
 // =====================
+const allowedOrigins = [
+  "http://localhost:5173", // frontend dev
+  "https://ziyo-tech.uz", // asosiy frontend
+  "https://server.ziyo-tech.uz", // backend domen
+];
+
 app.use(
   cors({
-    origin: ["https://ziyo-tech-teacher.vercel.app"], // Barcha domenlarni ruxsat berish
+    origin: function (origin, callback) {
+      // Agar origin yo‘q bo‘lsa (masalan, Postman yoki server ichidan) — ruxsat ber
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    // allowedHeaders: ["*"], // Barcha headerlarni ruxsat berish
-    optionsSuccessStatus: 200,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Body parsing
+// =====================
+// BODY PARSING
+// =====================
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Static files
+// =====================
+// STATIC FILES
+// =====================
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Create upload directories
+// =====================
+// MONGO DB ULANISH
+// =====================
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(async () => {
+    console.log("✅ Database connected");
+
+    try {
+      await migrateFileUrls();
+    } catch (error) {
+      console.error("URL migration failed:", error);
+    }
+  })
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+// =====================
+// UPLOAD PAPKALARINI YARATISH
+// =====================
 const uploadDirs = [
   "uploads",
   "uploads/videos",
@@ -69,11 +109,13 @@ const uploadDirs = [
 uploadDirs.forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-    console.log(`Created directory: ${dir}`);
+    console.log(`📁 Created directory: ${dir}`);
   }
 });
 
-// Health check
+// =====================
+// HEALTH CHECK ROUTE
+// =====================
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -82,7 +124,79 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Routes
+// =====================
+// DOMAINNI ALMASHTIRISH ROUTE
+// =====================
+app.get("/change-domain-data", async (req, res) => {
+  try {
+    const materials = await MaterialModel.updateMany(
+      { fileUrl: { $regex: "^http://server\\.ziyo-tech\\.uz/api" } },
+      [
+        {
+          $set: {
+            fileUrl: {
+              $replaceOne: {
+                input: "$fileUrl",
+                find: "http://server.ziyo-tech.uz/api",
+                replacement: "https://server.ziyo-tech.uz",
+              },
+            },
+          },
+        },
+      ]
+    );
+
+    const practices = await practiceModel.updateMany(
+      { fileUrl: { $regex: "^http://server\\.ziyo-tech\\.uz/api" } },
+      [
+        {
+          $set: {
+            fileUrl: {
+              $replaceOne: {
+                input: "$fileUrl",
+                find: "http://server.ziyo-tech.uz/api",
+                replacement: "https://server.ziyo-tech.uz",
+              },
+            },
+          },
+        },
+      ]
+    );
+
+    const videoWorks = await videoWorkModel.updateMany(
+      { "works.fileUrl": { $regex: "/uploads/files/" } },
+      [
+        {
+          $set: {
+            "works.$[].fileUrl": {
+              $replaceOne: {
+                input: "$works.fileUrl",
+                find: "/uploads/files/",
+                replacement: "/uploads/others/",
+              },
+            },
+          },
+        },
+      ]
+    );
+
+    res.status(200).json({
+      status: "success",
+      materials,
+      practices,
+      videoWorks,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
+  }
+});
+
+// =====================
+// ROUTES
+// =====================
 app.use("/api/student", StudentRouter);
 app.use("/api/teacher", teacherRouter);
 app.use("/api/upload", uploadRouter);
@@ -97,27 +211,32 @@ app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
+app.use("/api", glossaryRouter);
 app.use("/api/chat", chatRouter);
 
-// Error handlers
+// =====================
+// ERROR HANDLERS
+// =====================
 app.use(multerErrorHandler);
 
 app.use((err, req, res, next) => {
-  console.error("Global error:", err);
+  console.error("❌ Global error:", err);
 
-  // CORS headers for error responses
-  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Credentials", "true");
 
   res.status(500).json({
     status: "error",
-    message: "Something went wrong!",
+    message: err.message || "Something went wrong!",
   });
 });
 
+// =====================
+// SERVER START
+// =====================
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`Server started on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Server started on port ${PORT}`);
 });
 
 export default app;
