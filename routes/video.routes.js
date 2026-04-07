@@ -8,13 +8,8 @@ import path from "path";
 
 const router = express.Router();
 
-// Helper function to get correct domain based on request
-const getDomainFromRequest = (req) => {
-  const host = req.get("host");
-  if (host.includes("teacher.")) {
-    return "https://teacher.ziyo-tech.uz";
-  }
-  return "https://ziyo-tech.uz";
+const getDomainFromRequest = () => {
+  return "https://server.ziyo-tech.uz";
 };
 
 // Get all videos

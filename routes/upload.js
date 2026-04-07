@@ -20,7 +20,7 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
     }
 
     // Get the correct domain for file URLs
-    const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
+    const domain = "https://server.ziyo-tech.uz";
 
     // Process video file (local upload)
     const videoFile = files.video[0];
