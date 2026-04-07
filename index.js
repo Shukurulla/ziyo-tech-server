@@ -36,7 +36,7 @@ config();
 const app = express();
 
 // =====================
-// ✅ TO‘G‘RILANGAN UNIVERSAL CORS KONFIGURATSIYASI
+// CORS KONFIGURATSIYASI
 // =====================
 app.use((req, res, next) => {
   const origin = req.headers.origin;

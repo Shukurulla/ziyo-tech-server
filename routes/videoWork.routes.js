@@ -74,7 +74,7 @@ router.post(
       }
 
       // Get the correct domain for file URLs
-      const domain = getDomainFromRequest(req);
+      const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
 
       // Process uploaded files
       const works = [];
