@@ -95,6 +95,7 @@ const loggerMiddleware = (req, res, next) => {
       `| RES: ${responseBody}`,
     ].join(" ");
 
+    console.log(line);
     writeLine(line);
 
     return originalEnd.apply(res, [chunk, ...args]);
