@@ -80,7 +80,7 @@ router.post(
         }
 
         const file = files.file[0];
-        fileUrlResult = `https://server.ziyo-tech/api/uploads/files/${file.filename}`;
+        fileUrlResult = `https://server.ziyo-tech.uz/uploads/files/${file.filename}`;
         fileType = path
           .extname(file.originalname)
           .toLowerCase()
@@ -104,7 +104,7 @@ router.post(
       // Process thumbnail if present
       if (files && files.thumbnail && files.thumbnail[0]) {
         const thumbnail = files.thumbnail[0];
-        thumbnailUrl = `https://server.ziyo-tech/api/uploads/thumbnails/${thumbnail.filename}`;
+        thumbnailUrl = `https://server.ziyo-tech.uz/uploads/thumbnails/${thumbnail.filename}`;
       }
 
       // Create new material
@@ -205,7 +205,7 @@ router.put(
 
           // Set new file
           const file = files.file[0];
-          updateData.fileUrl = `https://server.ziyo-tech/api/uploads/files/${file.filename}`;
+          updateData.fileUrl = `https://server.ziyo-tech.uz/uploads/files/${file.filename}`;
           updateData.fileType = path
             .extname(file.originalname)
             .toLowerCase()
@@ -257,7 +257,7 @@ router.put(
         }
 
         const thumbnail = files.thumbnail[0];
-        updateData.thumbnailUrl = `https://server.ziyo-tech/uploads/api/thumbnails/${thumbnail.filename}`;
+        updateData.thumbnailUrl = `https://server.ziyo-tech.uz/uploads/thumbnails/${thumbnail.filename}`;
       }
 
       // Update material
