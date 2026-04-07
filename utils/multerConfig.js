@@ -28,11 +28,18 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename with timestamp
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    const nameWithoutExt = path.basename(file.originalname, ext);
-    cb(null, `${nameWithoutExt}-${uniqueSuffix}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase();
+    const nameWithoutExt = path.basename(file.originalname, path.extname(file.originalname));
+    // Slug: kirill/unicode -> latin, bo'sh joy -> _, maxsus belgilar olib tashlash
+    const slug = nameWithoutExt
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_\-]/g, "")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      || "file";
+    cb(null, `${slug}_${uniqueSuffix}${ext}`);
   },
 });
 
