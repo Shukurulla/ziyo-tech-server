@@ -5,27 +5,20 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure storage for different file types
+// Absolyut yo'l — PM2 qayerdan ishga tushsa ham to'g'ri ishlaydi
+const BASE_UPLOAD = path.join(__dirname, "..", "uploads");
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let uploadPath = "uploads/";
+    let folder = "others";
 
-    // Organize files by type
-    if (file.fieldname === "video") {
-      uploadPath += "videos/";
-    } else if (file.fieldname === "audios") {
-      uploadPath += "audios/";
-    } else if (file.fieldname === "presentations") {
-      uploadPath += "presentations/";
-    } else if (file.fieldname === "file") {
-      uploadPath += "files/";
-    } else if (file.fieldname === "thumbnail") {
-      uploadPath += "thumbnails/";
-    } else {
-      uploadPath += "others/";
-    }
+    if (file.fieldname === "video") folder = "videos";
+    else if (file.fieldname === "audios") folder = "audios";
+    else if (file.fieldname === "presentations") folder = "presentations";
+    else if (file.fieldname === "file") folder = "files";
+    else if (file.fieldname === "thumbnail") folder = "thumbnails";
 
-    cb(null, uploadPath);
+    cb(null, path.join(BASE_UPLOAD, folder));
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);

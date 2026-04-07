@@ -103,7 +103,7 @@ router.post(
       }
 
       // Get the correct domain for file URLs
-      const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
+      const domain = getDomainFromRequest();
 
       // Process new audio files
       const newAudios = {};

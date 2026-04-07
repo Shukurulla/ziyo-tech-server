@@ -11,13 +11,8 @@ import path from "path";
 
 const router = express.Router();
 
-// Helper function to get correct domain based on request
-const getDomainFromRequest = (req) => {
-  const host = req.get("host");
-  if (host.includes("teacher.")) {
-    return "https://teacher.ziyo-tech.uz";
-  }
-  return "https://ziyo-tech.uz";
+const getDomainFromRequest = () => {
+  return "https://server.ziyo-tech.uz";
 };
 
 // Create practice
@@ -34,7 +29,7 @@ router.post("/", practiceUpload, multerErrorHandler, async (req, res) => {
     }
 
     // Get the correct domain for file URLs
-    const domain = "https://ziyo-tech.uz"; //getDomainFromRequest(req);
+    const domain = getDomainFromRequest();
     const fileUrl = `${domain}/uploads/files/${file.filename}`;
 
     const newPractice = await Practice.create({
