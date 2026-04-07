@@ -1,6 +1,5 @@
 import express from "express";
 import studentModel from "../model/student.model.js";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import videoModel from "../model/video.model.js";
@@ -8,7 +7,7 @@ const router = express.Router();
 
 router.post("/sign", async (req, res) => {
   try {
-    const { login, password } = req.body;
+    const { login } = req.body;
     const findStudent = await studentModel.findOne({ login });
     if (findStudent) {
       return res.status(400).json({
@@ -16,10 +15,8 @@ router.post("/sign", async (req, res) => {
         message: "Bunday student oldin ro'yhatdan otgan",
       });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
     const newStudent = await studentModel.create({
       ...req.body,
-      password: hashedPassword,
     });
     const token = jwt.sign({ userId: newStudent._id }, process.env.JWT_SECRET, {
       expiresIn: "30d",
@@ -40,16 +37,12 @@ router.post("/login", async (req, res) => {
     const { login, password } = req.body;
     const findStudent = await studentModel.findOne({ login });
     if (!findStudent)
-      res.status(400).json({
+      return res.status(400).json({
         status: "error",
         message: "Bunday login foydalanuvchisi topilmadi",
       });
-    const comparePassword = await bcrypt.compare(
-      password,
-      findStudent.password
-    );
-    if (!comparePassword)
-      res
+    if (password !== findStudent.password)
+      return res
         .status(400)
         .json({ status: "error", message: "Password mos kelmadi" });
     const token = jwt.sign(
@@ -70,7 +63,7 @@ router.get("/profile", authMiddleware, async (req, res) => {
     const { userId } = req.userData;
     const findStudent = await studentModel.findById(userId);
     if (!findStudent)
-      res
+      return res
         .status(400)
         .json({ status: "error", message: "Bunday student topilmadi" });
     res.json({ status: "success", data: findStudent });

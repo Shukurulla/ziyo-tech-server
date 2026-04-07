@@ -97,6 +97,15 @@ const upload = multer({
 
 // PROFESSIONAL CORS ERROR HANDLER
 export const multerErrorHandler = (err, req, res, next) => {
+  // Agar xatolik yo'q yoki javob allaqachon yuborilgan bo'lsa
+  if (!err) {
+    return next();
+  }
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
   // CORS headers qo'shish - har doim
   const allowedOrigins = [
     "http://localhost:3000",

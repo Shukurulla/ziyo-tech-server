@@ -5,10 +5,10 @@ import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 import { multerErrorHandler } from "./utils/multerConfig.js";
+import loggerMiddleware from "./utils/logger.js";
 import fs from "fs";
 
-// Routers
-import glossaryRouter from "./routes/glossary.routes.js";
+// Import routes
 import StudentRouter from "./routes/student.routes.js";
 import uploadRouter from "./routes/upload.js";
 import tokenRouter from "./routes/token.js";
@@ -24,77 +24,52 @@ import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
-
-// Models va utils
 import MaterialModel from "./model/material.model.js";
 import videoWorkModel from "./model/videoWork.model.js";
 import practiceModel from "./model/practiceModel.js";
-import migrateFileUrls from "./utils/migrateUrls.js";
 
-// Fayl yo‘llari
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// .env yuklash
 config();
 
 const app = express();
 
 // =====================
-// ✅ CORS TO‘G‘RI KONFIGURATSIYASI
+// ✅ TO‘G‘RILANGAN UNIVERSAL CORS KONFIGURATSIYASI
 // =====================
-const allowedOrigins = [
-  "http://localhost:5173", // frontend dev
-  "https://ziyo-tech.uz", // asosiy frontend
-  "https://server.ziyo-tech.uz", // backend domen
-];
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  res.header("Access-Control-Allow-Origin", origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Agar origin yo‘q bo‘lsa (masalan, Postman yoki server ichidan) — ruxsat ber
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error(`CORS blocked: ${origin}`));
-      }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
-// =====================
-// BODY PARSING
-// =====================
+// Logger
+app.use(loggerMiddleware);
+
+// Body parsing
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// =====================
-// STATIC FILES
-// =====================
+// Static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // =====================
-// MONGO DB ULANISH
+// MONGO DB GA ULANISH
 // =====================
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(async () => {
-    console.log("✅ Database connected");
-
-    try {
-      await migrateFileUrls();
-    } catch (error) {
-      console.error("URL migration failed:", error);
-    }
-  })
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
+mongoose.connect(process.env.MONGO_URI).then(async () => {
+  console.log("✅ Database connected");
+});
 
 // =====================
-// UPLOAD PAPKALARINI YARATISH
+// Upload papkalarini yaratish
 // =====================
 const uploadDirs = [
   "uploads",
@@ -114,7 +89,7 @@ uploadDirs.forEach((dir) => {
 });
 
 // =====================
-// HEALTH CHECK ROUTE
+// Health check route
 // =====================
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -125,7 +100,7 @@ app.get("/health", (req, res) => {
 });
 
 // =====================
-// DOMAINNI ALMASHTIRISH ROUTE
+// Domainni almashtirish uchun route
 // =====================
 app.get("/change-domain-data", async (req, res) => {
   try {
@@ -163,6 +138,7 @@ app.get("/change-domain-data", async (req, res) => {
       ]
     );
 
+    // Update videoWork URLs from /uploads/files/ to /uploads/others/
     const videoWorks = await videoWorkModel.updateMany(
       { "works.fileUrl": { $regex: "/uploads/files/" } },
       [
@@ -211,30 +187,34 @@ app.use("/api/submissions", submissionRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
-app.use("/api", glossaryRouter);
 app.use("/api/chat", chatRouter);
 
 // =====================
-// ERROR HANDLERS
+// Error handlers
 // =====================
 app.use(multerErrorHandler);
 
 app.use((err, req, res, next) => {
   console.error("❌ Global error:", err);
 
+  // Agar javob allaqachon yuborilgan bo'lsa, hech narsa qilma
+  if (res.headersSent) {
+    return next(err);
+  }
+
   res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.header("Access-Control-Allow-Credentials", "true");
 
   res.status(500).json({
     status: "error",
-    message: err.message || "Something went wrong!",
+    message: "Something went wrong!",
   });
 });
 
 // =====================
 // SERVER START
 // =====================
-const PORT = process.env.PORT || 5000;
+const PORT = 2026;
 app.listen(PORT, () => {
   console.log(`🚀 Server started on port ${PORT}`);
 });

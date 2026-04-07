@@ -248,6 +248,22 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 
     // Delete associated files from local storage
     try {
+      // Delete video file
+      if (video.video && video.video.assets && video.video.assets.player) {
+        const videoUrl = video.video.assets.player;
+        if (videoUrl.includes("ziyo-tech.uz")) {
+          const filename = path.basename(videoUrl);
+          const filePath = path.join("uploads/videos", filename);
+          fs.unlink(filePath, (err) => {
+            if (err)
+              console.warn(
+                `Could not delete video file: ${filePath}`,
+                err.message
+              );
+          });
+        }
+      }
+
       // Delete presentation files
       for (const [_, url] of Object.entries(video.presentations)) {
         if (url.includes("ziyo-tech.uz")) {

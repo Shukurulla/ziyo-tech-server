@@ -2,7 +2,6 @@
 import express from "express";
 import { videoUpload, multerErrorHandler } from "../utils/multerConfig.js";
 import videoModel from "../model/video.model.js";
-import { getAccessToken } from "../utils/apiVideoAuth.js";
 import fs from "fs";
 import path from "path";
 
@@ -19,18 +18,27 @@ const getDomainFromRequest = (req) => {
 
 router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
   try {
-    const { title, description, video } = req.body;
+    const { title, description } = req.body;
     const files = req.files;
 
-    if (!files) {
+    if (!files || !files.video) {
       return res.status(400).json({
         status: "error",
-        message: "No files uploaded",
+        message: "No video file uploaded",
       });
     }
 
     // Get the correct domain for file URLs
     const domain = getDomainFromRequest(req);
+
+    // Process video file (local upload)
+    const videoFile = files.video[0];
+    const videoUrl = `${domain}/uploads/videos/${videoFile.filename}`;
+    const videoData = {
+      assets: {
+        player: videoUrl,
+      },
+    };
 
     // Process audio files
     const audios = {};
@@ -54,7 +62,7 @@ router.post("/", videoUpload, multerErrorHandler, async (req, res) => {
 
     // Save to database
     const saved = await videoModel.create({
-      video: JSON.parse(video),
+      video: videoData,
       title,
       description,
       presentations,

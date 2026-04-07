@@ -1,13 +1,12 @@
 import express from "express";
 import teacherModel from "../model/teacher.model.js";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import authMiddleware from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 router.post("/sign", async (req, res) => {
   try {
-    const { login, password } = req.body;
+    const { login } = req.body;
     const findteacher = await teacherModel.findOne({ login });
     if (findteacher) {
       return res.status(400).json({
@@ -15,10 +14,8 @@ router.post("/sign", async (req, res) => {
         message: "Bunday teacher oldin ro'yhatdan otgan",
       });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
     const newteacher = await teacherModel.create({
       ...req.body,
-      password: hashedPassword,
     });
     const token = jwt.sign({ userId: newteacher._id }, process.env.JWT_SECRET, {
       expiresIn: "30d",
@@ -39,16 +36,13 @@ router.post("/login", async (req, res) => {
     const { login, password } = req.body;
     const findteacher = await teacherModel.findOne({ login });
     if (!findteacher)
-      res.status(400).json({
+      return res.status(400).json({
         status: "error",
         message: "Bunday login foydalanuvchisi topilmadi",
       });
-    const comparePassword = await bcrypt.compare(
-      password,
-      findteacher.password
-    );
-    if (!comparePassword)
-      res
+
+    if (password !== findteacher.password)
+      return res
         .status(400)
         .json({ status: "error", message: "Password mos kelmadi" });
     const token = jwt.sign(
@@ -69,7 +63,7 @@ router.get("/profile", authMiddleware, async (req, res) => {
     const { userId } = req.userData;
     const findteacher = await teacherModel.findById(userId);
     if (!findteacher)
-      res
+      return res
         .status(400)
         .json({ status: "error", message: "Bunday teacher topilmadi" });
     res.json({ status: "success", data: findteacher });

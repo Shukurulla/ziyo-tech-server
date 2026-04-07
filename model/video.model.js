@@ -3,11 +3,8 @@ import mongoose from "mongoose";
 const videoSchema = new mongoose.Schema(
   {
     video: {
-      iframe: { type: String, required: true },
-      player: { type: String, required: true },
-      hls: { type: String, required: true },
-      thumbnail: { type: String, required: true },
-      mp4: { type: String, required: true },
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
     },
     title: {
       type: String,
@@ -19,11 +16,11 @@ const videoSchema = new mongoose.Schema(
     },
     presentations: {
       type: Object,
-      required: true,
+      default: {},
     },
     audios: {
       type: Object,
-      required: true,
+      default: {},
     },
   },
   {
