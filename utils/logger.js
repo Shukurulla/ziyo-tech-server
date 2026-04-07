@@ -7,109 +7,100 @@ const __dirname = path.dirname(__filename);
 const LOG_DIR = path.join(__dirname, "..", "logs");
 const LOG_FILE = path.join(LOG_DIR, "api.log");
 
-// Logs papkasini yaratish
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
-// Vaqtni formatlash
-const formatDate = (date) => {
-  return date.toISOString().replace("T", " ").substring(0, 23);
+// DD.MM.YYYY HH:MM formatda vaqt
+const formatDate = () => {
+  const now = new Date();
+  const d = String(now.getDate()).padStart(2, "0");
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const y = now.getFullYear();
+  const h = String(now.getHours()).padStart(2, "0");
+  const min = String(now.getMinutes()).padStart(2, "0");
+  return `${d}.${m}.${y} ${h}:${min}`;
 };
 
-// Log yozish
-const writeLog = (entry) => {
-  const line = JSON.stringify(entry) + "\n";
-  fs.appendFile(LOG_FILE, line, (err) => {
-    if (err) console.error("Log yozishda xatolik:", err.message);
-  });
-};
-
-// Request/Response logger middleware
-const loggerMiddleware = (req, res, next) => {
-  const startTime = Date.now();
-  const requestId = Math.random().toString(36).substring(2, 10);
-
-  // Request ma'lumotlarini yig'ish
-  const requestLog = {
-    id: requestId,
-    timestamp: formatDate(new Date()),
-    type: "REQUEST",
-    method: req.method,
-    url: req.originalUrl,
-    ip: req.ip || req.connection?.remoteAddress,
-    userAgent: req.get("User-Agent"),
-    body: req.method !== "GET" ? sanitizeBody(req.body) : undefined,
-    query: Object.keys(req.query).length > 0 ? req.query : undefined,
-  };
-
-  writeLog(requestLog);
-
-  // Original res.json ni saqlash
-  const originalJson = res.json.bind(res);
-  const originalSend = res.send.bind(res);
-
-  res.json = (body) => {
-    logResponse(requestId, req, res, startTime, body);
-    return originalJson(body);
-  };
-
-  res.send = (body) => {
-    // Faqat json bo'lmagan responslarni log qilish
-    if (typeof body === "string" && !res._loggedResponse) {
-      logResponse(requestId, req, res, startTime, body);
+// Maxfiy ma'lumotlarni yashirish
+const sanitize = (obj) => {
+  if (!obj || typeof obj !== "object") return obj;
+  const copy = { ...obj };
+  const hidden = ["password", "token", "authorization", "secret", "apikey"];
+  for (const key of Object.keys(copy)) {
+    if (hidden.some((h) => key.toLowerCase().includes(h))) {
+      copy[key] = "***";
     }
-    return originalSend(body);
+  }
+  return copy;
+};
+
+// Body ni qisqartirish
+const trimBody = (body) => {
+  if (!body) return "-";
+  try {
+    const str = typeof body === "string" ? body : JSON.stringify(body);
+    return str.length > 500 ? str.substring(0, 500) + "..." : str;
+  } catch {
+    return "[parse error]";
+  }
+};
+
+// Faylga yozish
+const writeLine = (line) => {
+  fs.appendFileSync(LOG_FILE, line + "\n");
+};
+
+const loggerMiddleware = (req, res, next) => {
+  const start = Date.now();
+
+  // response body ni ushlab qolish
+  const chunks = [];
+  const originalWrite = res.write;
+  const originalEnd = res.end;
+
+  res.write = function (chunk, ...args) {
+    if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    return originalWrite.apply(res, [chunk, ...args]);
+  };
+
+  res.end = function (chunk, ...args) {
+    if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+
+    const duration = Date.now() - start;
+    const time = formatDate();
+
+    // Response body
+    let responseBody = "-";
+    try {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      responseBody = trimBody(raw);
+    } catch {
+      responseBody = "[read error]";
+    }
+
+    // Request body
+    const reqBody =
+      req.method !== "GET" && req.body && Object.keys(req.body).length > 0
+        ? JSON.stringify(sanitize(req.body))
+        : "-";
+
+    const line = [
+      `[${time}]`,
+      req.method,
+      req.originalUrl,
+      `=> ${res.statusCode}`,
+      `(${duration}ms)`,
+      `| REQ: ${reqBody}`,
+      `| RES: ${responseBody}`,
+    ].join(" ");
+
+    writeLine(line);
+
+    return originalEnd.apply(res, [chunk, ...args]);
   };
 
   next();
-};
-
-const logResponse = (requestId, req, res, startTime, body) => {
-  if (res._loggedResponse) return;
-  res._loggedResponse = true;
-
-  const duration = Date.now() - startTime;
-
-  const responseLog = {
-    id: requestId,
-    timestamp: formatDate(new Date()),
-    type: "RESPONSE",
-    method: req.method,
-    url: req.originalUrl,
-    statusCode: res.statusCode,
-    duration: `${duration}ms`,
-    body: sanitizeResponseBody(body),
-  };
-
-  writeLog(responseLog);
-};
-
-// Parol va tokenlarni yashirish
-const sanitizeBody = (body) => {
-  if (!body || typeof body !== "object") return body;
-  const sanitized = { ...body };
-  const sensitiveKeys = ["password", "token", "authorization", "secret", "apiKey"];
-  for (const key of Object.keys(sanitized)) {
-    if (sensitiveKeys.some((s) => key.toLowerCase().includes(s.toLowerCase()))) {
-      sanitized[key] = "***";
-    }
-  }
-  return sanitized;
-};
-
-// Response body ni qisqartirish (katta bo'lsa)
-const sanitizeResponseBody = (body) => {
-  if (!body) return body;
-  try {
-    const str = typeof body === "string" ? body : JSON.stringify(body);
-    if (str.length > 1000) {
-      return JSON.parse(str.substring(0, 1000) + '..."');
-    }
-    return typeof body === "string" ? body : body;
-  } catch {
-    return "[body parse error]";
-  }
 };
 
 export default loggerMiddleware;
