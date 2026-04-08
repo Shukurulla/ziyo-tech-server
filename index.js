@@ -24,6 +24,7 @@ import evalutionRouter from "./routes/evalutionRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import questionRouter from "./routes/question.js";
 import chatRouter from "./routes/chat.routes.js";
+import glossaryRouter from "./routes/glossary.routes.js";
 import MaterialModel from "./model/material.model.js";
 import videoWorkModel from "./model/videoWork.model.js";
 import practiceModel from "./model/practiceModel.js";
@@ -188,6 +189,7 @@ app.use("/api/notifications", notificationRouter);
 app.use("/api", materialRouter);
 app.use("/api/questions", questionRouter);
 app.use("/api/chat", chatRouter);
+app.use("/api", glossaryRouter);
 
 // =====================
 // Error handlers
