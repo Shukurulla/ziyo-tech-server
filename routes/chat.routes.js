@@ -109,11 +109,18 @@ router.post("/ai-response", authMiddleware, async (req, res) => {
 
 // Function to interact with OpenAI API
 async function generateAIResponse(userMessage) {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    console.error("OPENAI_API_KEY .env faylda topilmadi");
+    return "AI xizmati sozlanmagan. Administratorga murojaat qiling.";
+  }
+
   try {
     const response = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
-        model: "gpt-4.1-nano",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -129,8 +136,7 @@ async function generateAIResponse(userMessage) {
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization:
-            "Bearer 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",
+          Authorization: `Bearer ${apiKey}`,
         },
       }
     );
@@ -139,7 +145,11 @@ async function generateAIResponse(userMessage) {
       response.data?.choices?.[0]?.message?.content || "Uzr, javob topilmadi."
     );
   } catch (error) {
-    console.error("OpenAI API error:", error);
+    console.error(
+      "OpenAI API error:",
+      error.response?.status,
+      error.response?.data || error.message
+    );
     return "AI xizmatida xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.";
   }
 }
